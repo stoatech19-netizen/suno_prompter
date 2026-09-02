@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suno Prompt Generator</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+  <h1>Suno Prompt Generator</h1>
+
+  <div class="mode-tabs">
+    <button type="button" id="tab-file" class="mode-tab active">파일 업로드</button>
+    <button type="button" id="tab-category" class="mode-tab">카테고리 입력</button>
+  </div>
+
+  <form id="upload-form">
+    <label class="dropzone" id="dropzone" for="file-input">
+      <span id="dropzone-text">파일을 선택하거나 여기로 드래그하세요 (mp3, wav / 최대 20MB)</span>
+    </label>
+    <input type="file" id="file-input" name="file" accept=".mp3,.wav,audio/mpeg,audio/wav" hidden>
+    <div class="actions-row">
+      <button type="submit" id="submit-btn" class="btn-solid" disabled>분석하기</button>
+    </div>
+  </form>
+
+  <form id="category-form" hidden>
+    <input type="text" id="category-input" class="category-input" autocomplete="off" placeholder="예: 주방가전, 50대 여성 패션, 20대 남성 뷰티 등">
+    <div class="actions-row">
+      <button type="submit" id="category-submit-btn" class="btn-solid" disabled>생성하기</button>
+    </div>
+  </form>
+
+  <div id="status" class="status" hidden></div>
+
+  <div id="result" class="result" hidden>
+    <div class="result-grid">
+      <section class="card">
+        <div class="card-header">
+          <h2>분석 결과</h2>
+        </div>
+        <div class="card-body">
+          <table class="features-table">
+            <tbody id="features-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="result-right">
+        <section class="card">
+          <div class="card-header">
+            <h2>Lyrics</h2>
+            <div class="card-actions">
+              <button id="copy-lyrics-btn" type="button" class="btn-ghost">복사</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <textarea id="lyrics-structure" readonly rows="5"></textarea>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Styles</h2>
+            <div class="card-actions">
+              <button id="copy-btn" type="button" class="btn-ghost">복사</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <textarea id="suno-prompt" readonly rows="8"></textarea>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Title</h2>
+            <div class="card-actions">
+              <button id="copy-title-btn" type="button" class="btn-ghost">복사</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <textarea id="title-suggestion" readonly rows="1"></textarea>
+          </div>
+        </section>
+
+        <div class="regen-row">
+          <span class="regen-row-spacer" aria-hidden="true"></span>
+          <div id="variation-nav" class="variation-nav" hidden>
+            <button id="prev-variation-btn" type="button" class="btn-ghost" title="이전 변형">◀</button>
+            <span id="variation-counter" class="variation-counter"></span>
+            <button id="next-variation-btn" type="button" class="btn-ghost" title="다음 변형">▶</button>
+          </div>
+          <button id="refresh-btn" type="button" class="btn-solid" title="같은 분위기로 새로운 변형 4개를 다시 생성" disabled>확장하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

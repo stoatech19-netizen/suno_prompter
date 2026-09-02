@@ -1,0 +1,6 @@
+flask
+librosa
+soundfile
+numpy
+google-genai
+python-dotenv

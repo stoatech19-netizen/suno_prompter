@@ -1,0 +1,252 @@
+:root {
+  color-scheme: light dark;
+  --accent: #7c5cff;
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6b6b6b;
+  --border: #dcdcdc;
+  --panel: #f7f7fb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14141a;
+    --fg: #f0f0f0;
+    --muted: #9a9aa5;
+    --border: #33333d;
+    --panel: #1f1f28;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 28px 20px;
+}
+
+h1 { font-size: 1.4rem; margin-bottom: 16px; }
+h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
+
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.mode-tab {
+  margin-top: 0;
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.mode-tab:hover { color: var(--fg); }
+.mode-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.category-input {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+.category-input:focus { outline: none; border-color: var(--accent); }
+
+.dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.dropzone.dragover, .dropzone:hover { border-color: var(--accent); color: var(--fg); }
+
+.actions-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.actions-row button { margin-top: 0; }
+
+.btn-solid {
+  margin-top: 0;
+  height: 42px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.btn-solid:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button {
+  margin-top: 10px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.status {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 0.85rem;
+}
+.status.error { color: #d64545; }
+
+.result-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .result-grid { grid-template-columns: 1fr; }
+}
+
+.result-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Three-column grid so the nav stays visually centered on the row
+   regardless of the button beside it: an invisible spacer balances the
+   button's column, keeping the middle (nav) column's centering fixed. */
+.regen-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.regen-row-spacer {
+  visibility: hidden;
+}
+#refresh-btn {
+  justify-self: end;
+}
+
+.variation-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+/* A `hidden`-attribute element still matches this class selector, and an
+   author rule that sets `display` always wins over the UA's `[hidden]`
+   rule regardless of specificity — so `hidden` alone can't hide this
+   without an explicit override here. */
+.variation-nav[hidden] {
+  display: none;
+}
+.variation-counter {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 38px;
+  text-align: center;
+}
+
+/* Card: every result block (table or textarea) shares the same shell, so
+   widths, borders, and button placement stay consistent regardless of how
+   much content or how many actions a given block has. */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.card-body { width: 100%; }
+
+.features-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.features-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.features-table tr:last-child td { border-bottom: none; }
+.features-table td:first-child { color: var(--muted); width: 45%; }
+
+.card-body textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.btn-ghost {
+  margin-top: 0;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
