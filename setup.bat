@@ -31,13 +31,14 @@ if defined PYEXE (
 ) else (
     echo [INFO] Python not found. Downloading the official Python 3.12.7 installer...
     set "PY_INSTALLER=%TEMP%\python-3.12.7-amd64.exe"
-    powershell -NoProfile -Command "try { Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe' -OutFile '!PY_INSTALLER!' } catch { exit 1 }"
+    powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe' -OutFile '!PY_INSTALLER!' } catch { Write-Host ('[DETAIL] ' + $_.Exception.Message); exit 1 }"
 
     if not exist "!PY_INSTALLER!" (
         echo.
-        echo [ERROR] Could not download the Python installer.
-        echo Please check the internet connection and try again, or install
-        echo Python manually from https://www.python.org/downloads/ and re-run setup.bat.
+        echo [ERROR] Could not download the Python installer ^(see [DETAIL] above for the reason^).
+        echo Please check the internet connection and try again, or install Python
+        echo manually from https://www.python.org/downloads/ ^(check "Add python.exe
+        echo to PATH" during install^) and re-run setup.bat.
         pause
         exit /b 1
     )
@@ -87,14 +88,22 @@ echo ============================================
 echo  Setup complete!
 echo ============================================
 echo.
-echo NEXT STEP: Open the .env file in this folder with Notepad
-echo and enter your Gemini API key, for example:
+echo One last step: you need a Gemini API key ^(free^).
+echo Don't have one yet? Get it here: https://aistudio.google.com/apikey
 echo.
-echo     GEMINI_API_KEY=your-key-here
+set "USER_KEY="
+set /p "USER_KEY=Paste your Gemini API key here and press Enter (or just press Enter to skip): "
+
+if not "!USER_KEY!"=="" (
+    set "GEMINI_KEY_TO_WRITE=!USER_KEY!"
+    powershell -NoProfile -Command "$k = $env:GEMINI_KEY_TO_WRITE; $lines = Get-Content '.env' -Encoding UTF8 | ForEach-Object { $_ -replace '^GEMINI_API_KEY=.*', ('GEMINI_API_KEY=' + $k) }; [System.IO.File]::WriteAllLines((Resolve-Path '.env'), $lines, (New-Object System.Text.UTF8Encoding($false)))"
+    echo [OK] API key saved to .env.
+) else (
+    echo [INFO] Skipped. You can add your key later by opening .env in this
+    echo folder with Notepad and adding a line like: GEMINI_API_KEY=your-key-here
+)
+
 echo.
-echo Don't have a key yet? Get a free one at:
-echo     https://aistudio.google.com/apikey
-echo.
-echo Then double-click run.bat to start the app.
+echo Setup finished. Double-click run.bat to start the app.
 echo.
 pause
