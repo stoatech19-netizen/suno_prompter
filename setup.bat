@@ -106,8 +106,12 @@ if not "!USER_KEY!"=="" (
     powershell -NoProfile -Command "$k = $env:GEMINI_KEY_TO_WRITE; $lines = Get-Content '.env' -Encoding UTF8 | ForEach-Object { $_ -replace '^GEMINI_API_KEY=.*', ('GEMINI_API_KEY=' + $k) }; [System.IO.File]::WriteAllLines((Resolve-Path '.env'), $lines, (New-Object System.Text.UTF8Encoding($false)))"
     echo [OK] API key saved to .env.
 ) else (
-    echo [INFO] Skipped. You can add your key later by opening .env in this
-    echo folder with Notepad and adding a line like: GEMINI_API_KEY=your-key-here
+    echo.
+    echo [INFO] No key entered - skipped for now.
+    echo Before running the app, open .env in this folder with Notepad and
+    echo add a line like: GEMINI_API_KEY=your-key-here
+    echo.
+    pause
 )
 
 echo.
