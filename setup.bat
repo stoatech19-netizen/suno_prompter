@@ -14,10 +14,17 @@ echo.
 set "PYEXE="
 
 REM --- 1. Look for an existing Python install first ---
+REM where.exe can also match the Windows "App Execution Alias" stub at
+REM %LocalAppData%\Microsoft\WindowsApps\python.exe, which exists as a file
+REM even when Python is NOT installed and just prints a Store prompt when
+REM run. Actually running --version on each candidate filters that out.
 where python >nul 2>nul
 if %errorlevel%==0 (
     for /f "delims=" %%P in ('where python') do (
-        if not defined PYEXE set "PYEXE=%%P"
+        if not defined PYEXE (
+            "%%P" --version >nul 2>nul
+            if !errorlevel!==0 set "PYEXE=%%P"
+        )
     )
 )
 
