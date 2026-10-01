@@ -1,4 +1,5 @@
 import os
+import traceback
 import uuid
 
 from dotenv import load_dotenv
@@ -44,6 +45,8 @@ def _variation_result(analysis, fallback_bpm=None):
 
 
 def _gemini_error_response(e):
+    print("[analyze error]", flush=True)
+    traceback.print_exc()
     if isinstance(e, RuntimeError):
         return jsonify({"error": str(e)}), 500
     message = str(e)
