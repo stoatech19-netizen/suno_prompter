@@ -4,6 +4,7 @@ import uuid
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from analyzer import (
     VARIATION_BATCH_SIZE,
@@ -26,7 +27,10 @@ if not (os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY")):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 ALLOWED_EXTENSIONS = {".mp3", ".wav"}
-MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB, matches Gemini inline data limit
+# Only the first 90s gets re-encoded and sent to Gemini (see
+# _trim_audio_bytes), so this just needs to comfortably fit a full-length
+# uncompressed WAV of a single song, not Gemini's own inline data limit.
+MAX_CONTENT_LENGTH = 150 * 1024 * 1024  # 150MB
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -56,6 +60,12 @@ def _gemini_error_response(e):
     if "403" in message or "PERMISSION_DENIED" in upper:
         return jsonify({"error": "Gemini API 키(프로젝트)가 접근이 거부된 상태입니다. API 키 상태를 확인해주세요."}), 403
     return jsonify({"error": "분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def _handle_too_large(e):
+    max_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+    return jsonify({"error": f"파일이 너무 큽니다. {max_mb}MB 이하의 mp3/wav 파일만 업로드할 수 있습니다."}), 413
 
 
 @app.route("/")
