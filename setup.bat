@@ -52,6 +52,7 @@ if defined PYEXE (
 
     echo [INFO] Installing Python for the current user, no admin rights required...
     "!PY_INSTALLER!" /quiet InstallAllUsers=0 PrependPath=1 Include_launcher=0 Include_test=0
+    del /f /q "!PY_INSTALLER!" >nul 2>nul
 
     set "PYEXE=%LocalAppData%\Programs\Python\Python312\python.exe"
     if not exist "!PYEXE!" (
@@ -63,6 +64,10 @@ if defined PYEXE (
         exit /b 1
     )
     echo [OK] Python installed: !PYEXE!
+
+    REM Record that THIS script installed Python, so uninstall.bat knows it
+    REM is safe to offer removing it (and won't touch a pre-existing Python).
+    > ".python_installed_by_setup.txt" echo PYTHON_VERSION=3.12.7
 )
 
 echo.

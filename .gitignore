@@ -7,3 +7,4 @@ __pycache__/
 backups/
 .deploy_stage/
 .claude/settings.local.json
+.python_installed_by_setup.txt
