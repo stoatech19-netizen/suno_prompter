@@ -1,6 +1,7 @@
 """Audio feature extraction + Gemini-based style analysis for Suno prompt generation."""
 import json
 import os
+import time
 
 import numpy as np
 import librosa
@@ -57,7 +58,12 @@ def _generate_with_rotation(contents, config):
 
     global _key_index
     last_err = None
-    for i in range(len(keys)):
+    # Even with a single key, retry at least once on a retryable error:
+    # Gemini's 503 "high demand" spikes are usually gone within a couple
+    # seconds, and without this a lone key would fail on the first blip
+    # with nothing left to rotate to.
+    attempts = max(len(keys), 2)
+    for i in range(attempts):
         idx = (_key_index + i) % len(keys)
         try:
             client = genai.Client(api_key=keys[idx])
@@ -69,6 +75,8 @@ def _generate_with_rotation(contents, config):
         except Exception as e:
             last_err = e
             if _is_retryable_key_error(e):
+                if i < attempts - 1:
+                    time.sleep(1.5)
                 continue
             raise
     raise last_err
