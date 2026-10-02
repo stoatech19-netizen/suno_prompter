@@ -16,11 +16,28 @@
 
   <dialog id="settings-dialog">
     <div class="dialog-header">
-      <h2>고정 스타일 태그 설정</h2>
+      <h2>설정</h2>
       <button type="button" id="settings-close-btn" class="btn-icon" aria-label="닫기">✕</button>
     </div>
-    <p class="settings-hint">모든 생성 결과의 Style 끝에 항상 포함되는 태그입니다. 줄 바꿈 또는 쉼표로 구분해서 입력하세요. 창을 닫으면 자동으로 내용이 저장됩니다.</p>
-    <textarea id="fixed-tags-input" rows="5"></textarea>
+
+    <div class="mode-tabs">
+      <button type="button" id="settings-tab-keys" class="mode-tab active">Gemini API 키</button>
+      <button type="button" id="settings-tab-tags" class="mode-tab">고정 스타일 태그</button>
+    </div>
+
+    <section id="settings-panel-keys">
+      <p class="settings-hint">분석 요청에 사용할 Gemini API 키입니다. 최소 1개가 필요하며, 외부 연결 없이 로컬 환경으로만 저장됩니다. 여러 개 등록하면 한도를 초과한 키는 건너뛰고 자동으로 다음 키를 시도합니다. 창을 닫으면 자동으로 저장됩니다.</p>
+      <div id="api-keys-list" class="key-list"></div>
+      <button type="button" id="add-api-key-btn" class="add-key-btn">+ 키 추가</button>
+      <p class="settings-hint api-keys-footer">
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Gemini API 키 무료로 발급받기 ↗</a>
+      </p>
+    </section>
+
+    <section id="settings-panel-tags" hidden>
+      <p class="settings-hint">모든 생성 결과의 Style 끝에 항상 포함되는 태그입니다. 줄 바꿈 또는 쉼표로 구분해서 입력하세요. 창을 닫으면 자동으로 내용이 저장됩니다.</p>
+      <textarea id="fixed-tags-input" rows="5"></textarea>
+    </section>
   </dialog>
 
   <div class="mode-tabs">

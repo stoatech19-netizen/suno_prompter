@@ -8,8 +8,10 @@ echo ============================================
 echo.
 echo This will remove, from THIS FOLDER only:
 echo   - .venv  (the Python virtual environment and all installed packages)
-echo   - .env   (your saved Gemini API key)
 echo   - any uploaded temp files left in uploads\
+echo.
+echo Your Gemini API key is stored in the browser (not in this folder), so
+echo it isn't touched by this uninstall.
 echo.
 
 set /p "CONFIRM=Continue? (y/n): "
@@ -22,11 +24,6 @@ if /i not "!CONFIRM!"=="y" (
 if exist ".venv" (
     echo [INFO] Removing .venv ...
     rmdir /s /q ".venv"
-)
-
-if exist ".env" (
-    echo [INFO] Removing .env ...
-    del /f /q ".env"
 )
 
 if exist "uploads" (

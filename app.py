@@ -2,7 +2,6 @@ import os
 import traceback
 import uuid
 
-from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -15,14 +14,6 @@ from analyzer import (
     extract_local_features,
     regenerate_variations,
 )
-
-load_dotenv()
-
-if not (os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY")):
-    raise RuntimeError(
-        "GEMINI_API_KEY (or GEMINI_API_KEYS) is not set. Copy .env.example to .env in the "
-        "suno_prompter folder and fill in your Gemini API key(s) before starting the app."
-    )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
@@ -53,6 +44,16 @@ def _fixed_tags_from_list(value):
         return None
     tags = [str(v).strip() for v in value if str(v).strip()]
     return tags or None
+
+
+def _api_keys_from_list(value):
+    if not isinstance(value, list):
+        return []
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def _missing_api_keys_response():
+    return jsonify({"error": "Gemini API 키가 설정되지 않았습니다. 설정(⋮) 메뉴에서 키를 추가해주세요."}), 400
 
 
 def _gemini_error_response(e):
@@ -93,6 +94,10 @@ def analyze():
     if ext not in ALLOWED_EXTENSIONS:
         return jsonify({"error": "mp3 또는 wav 파일만 업로드할 수 있습니다."}), 400
 
+    api_keys = _api_keys_from_list(request.form.getlist("api_keys"))
+    if not api_keys:
+        return _missing_api_keys_response()
+
     fixed_tags = _fixed_tags_from_list(request.form.getlist("fixed_tags"))
 
     temp_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}{ext}")
@@ -102,7 +107,7 @@ def analyze():
         local_features = extract_local_features(temp_path)
 
         try:
-            analysis = analyze_with_gemini(temp_path, local_features)
+            analysis = analyze_with_gemini(temp_path, local_features, api_keys)
         except Exception as e:
             return _gemini_error_response(e)
 
@@ -114,7 +119,7 @@ def analyze():
         # rather than failing the whole upload.
         try:
             extra = regenerate_variations(
-                analysis, local_features.get("bpm"), count=VARIATION_BATCH_SIZE - 1
+                analysis, local_features.get("bpm"), api_keys, count=VARIATION_BATCH_SIZE - 1
             )
         except Exception:
             extra = []
@@ -137,12 +142,15 @@ def analyze_category_route():
     body = request.get_json(silent=True) or {}
     category = (body.get("category") or "").strip()
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
+    api_keys = _api_keys_from_list(body.get("api_keys"))
 
     if not category:
         return jsonify({"error": "카테고리를 입력해주세요."}), 400
+    if not api_keys:
+        return _missing_api_keys_response()
 
     try:
-        variations = analyze_category(category)
+        variations = analyze_category(category, api_keys)
     except Exception as e:
         return _gemini_error_response(e)
 
@@ -155,12 +163,15 @@ def regenerate():
     previous_analysis = body.get("analysis")
     reference_bpm = body.get("bpm")
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
+    api_keys = _api_keys_from_list(body.get("api_keys"))
 
     if not isinstance(previous_analysis, dict):
         return jsonify({"error": "이전 분석 결과가 없습니다. 먼저 곡을 분석해주세요."}), 400
+    if not api_keys:
+        return _missing_api_keys_response()
 
     try:
-        variations = regenerate_variations(previous_analysis, reference_bpm)
+        variations = regenerate_variations(previous_analysis, reference_bpm, api_keys)
     except Exception as e:
         return _gemini_error_response(e)
 

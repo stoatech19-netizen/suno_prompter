@@ -90,11 +90,6 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
-if not exist ".env" (
-    copy ".env.example" ".env" >nul
-    echo [INFO] Created .env from .env.example.
-)
-
 echo.
 echo ============================================
 echo  Setup complete!
@@ -103,23 +98,7 @@ echo.
 echo One last step: you need a Gemini API key ^(free^).
 echo Don't have one yet? Get it here: https://aistudio.google.com/apikey
 echo.
-set "USER_KEY="
-set /p "USER_KEY=Paste your Gemini API key here and press Enter (or just press Enter to skip): "
-
-if not "!USER_KEY!"=="" (
-    set "GEMINI_KEY_TO_WRITE=!USER_KEY!"
-    powershell -NoProfile -Command "$k = $env:GEMINI_KEY_TO_WRITE; $lines = Get-Content '.env' -Encoding UTF8 | ForEach-Object { $_ -replace '^GEMINI_API_KEY=.*', ('GEMINI_API_KEY=' + $k) }; [System.IO.File]::WriteAllLines((Resolve-Path '.env'), $lines, (New-Object System.Text.UTF8Encoding($false)))"
-    echo [OK] API key saved to .env.
-) else (
-    echo.
-    echo [INFO] No key entered - skipped for now.
-    echo Before running the app, open .env in this folder with Notepad and
-    echo add a line like: GEMINI_API_KEY=your-key-here
-    echo.
-    pause
-)
-
-echo.
-echo Setup finished. Double-click run.bat to start the app.
+echo Double-click run.bat to start the app, then open the settings
+echo (the ... menu in the top-right corner) and paste your key there.
 echo.
 pause

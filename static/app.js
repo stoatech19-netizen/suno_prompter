@@ -24,6 +24,12 @@ const fixedTagsInput = document.getElementById("fixed-tags-input");
 const settingsBtn = document.getElementById("settings-btn");
 const settingsCloseBtn = document.getElementById("settings-close-btn");
 const settingsDialog = document.getElementById("settings-dialog");
+const settingsTabKeys = document.getElementById("settings-tab-keys");
+const settingsTabTags = document.getElementById("settings-tab-tags");
+const settingsPanelKeys = document.getElementById("settings-panel-keys");
+const settingsPanelTags = document.getElementById("settings-panel-tags");
+const apiKeysList = document.getElementById("api-keys-list");
+const addApiKeyBtn = document.getElementById("add-api-key-btn");
 
 settingsBtn.addEventListener("click", () => settingsDialog.showModal());
 settingsCloseBtn.addEventListener("click", () => settingsDialog.close());
@@ -31,6 +37,158 @@ settingsCloseBtn.addEventListener("click", () => settingsDialog.close());
 // outside it can report the dialog itself as the click target, closing the
 // dialog by accident. The close button and the native Escape handling
 // (built into showModal()) are the only ways to close it.
+
+function setSettingsTab(tab) {
+  const isKeys = tab === "keys";
+  settingsTabKeys.classList.toggle("active", isKeys);
+  settingsTabTags.classList.toggle("active", !isKeys);
+  settingsPanelKeys.hidden = !isKeys;
+  settingsPanelTags.hidden = isKeys;
+}
+settingsTabKeys.addEventListener("click", () => setSettingsTab("keys"));
+settingsTabTags.addEventListener("click", () => setSettingsTab("tags"));
+
+// Gemini API keys live only in this browser's localStorage, exactly like
+// the fixed style tags above -- no install-time prompt and no .env file
+// for corporate document-security software to lock/encrypt. At least one
+// key is required for analysis to work; extra keys are used as automatic
+// fallbacks when one hits its free-tier quota (see analyzer.py).
+const API_KEYS_STORAGE_KEY = "sunoGeminiApiKeys";
+
+function loadApiKeys() {
+  try {
+    const raw = localStorage.getItem(API_KEYS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch {
+    // localStorage unavailable or the stored value isn't valid JSON --
+    // fall through to a single empty slot.
+  }
+  return [""];
+}
+
+function saveApiKeys() {
+  try {
+    localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(apiKeys));
+  } catch {
+    // Ignore -- worst case the keys just don't persist across reloads.
+  }
+}
+
+function getApiKeysForRequest() {
+  return apiKeys.map((k) => k.trim()).filter(Boolean);
+}
+
+let apiKeys = loadApiKeys();
+// Tracks which rows show their key in plain text; UI-only, not persisted,
+// so every key is masked again after a reload.
+const revealedKeyRows = new Set();
+
+function removeApiKey(index) {
+  apiKeys.splice(index, 1);
+  const shifted = new Set();
+  revealedKeyRows.forEach((i) => {
+    if (i < index) shifted.add(i);
+    else if (i > index) shifted.add(i - 1);
+  });
+  revealedKeyRows.clear();
+  shifted.forEach((i) => revealedKeyRows.add(i));
+  saveApiKeys();
+  renderApiKeys();
+}
+
+function renderApiKeys() {
+  apiKeysList.innerHTML = "";
+  apiKeys.forEach((value, index) => {
+    const row = document.createElement("div");
+    row.className = "key-row";
+
+    const top = document.createElement("div");
+    top.className = "key-row-top";
+
+    const idWrap = document.createElement("div");
+    idWrap.className = "key-row-id";
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = `키 ${index + 1}`;
+    idWrap.appendChild(labelSpan);
+    if (index === 0) {
+      const badge = document.createElement("span");
+      badge.className = "key-badge";
+      badge.textContent = "기본";
+      idWrap.appendChild(badge);
+    }
+    top.appendChild(idWrap);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-key-btn";
+    removeBtn.textContent = "✕";
+    removeBtn.setAttribute("aria-label", `키 ${index + 1} 삭제`);
+    if (apiKeys.length <= 1) {
+      removeBtn.disabled = true;
+      removeBtn.title = "최소 1개의 키가 필요합니다";
+    } else {
+      removeBtn.title = "삭제";
+      removeBtn.addEventListener("click", () => removeApiKey(index));
+    }
+    top.appendChild(removeBtn);
+    row.appendChild(top);
+
+    const main = document.createElement("div");
+    main.className = "key-row-main";
+
+    const input = document.createElement("input");
+    input.id = `api-key-input-${index}`;
+    input.type = revealedKeyRows.has(index) ? "text" : "password";
+    input.value = value;
+    input.placeholder = "API 키를 붙여넣으세요";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.addEventListener("input", (e) => {
+      apiKeys[index] = e.target.value;
+      saveApiKeys();
+    });
+    main.appendChild(input);
+
+    const revealBtn = document.createElement("button");
+    revealBtn.type = "button";
+    revealBtn.className = "reveal-key-btn";
+    const isRevealed = revealedKeyRows.has(index);
+    revealBtn.setAttribute("aria-label", isRevealed ? "키 가리기" : "키 표시");
+    revealBtn.textContent = isRevealed ? "🙈" : "👁";
+    revealBtn.addEventListener("click", () => {
+      if (revealedKeyRows.has(index)) revealedKeyRows.delete(index);
+      else revealedKeyRows.add(index);
+      renderApiKeys();
+    });
+    main.appendChild(revealBtn);
+
+    row.appendChild(main);
+    apiKeysList.appendChild(row);
+  });
+}
+
+addApiKeyBtn.addEventListener("click", () => {
+  const index = apiKeys.length;
+  apiKeys.push("");
+  revealedKeyRows.add(index);
+  saveApiKeys();
+  renderApiKeys();
+  const el = document.getElementById(`api-key-input-${index}`);
+  if (el) el.focus();
+});
+
+renderApiKeys();
+
+// First run (no key saved yet) -- open straight to the key tab instead of
+// making the user find the kebab menu on their own, since there's no more
+// install-time prompt for this.
+if (getApiKeysForRequest().length === 0) {
+  setSettingsTab("keys");
+  settingsDialog.showModal();
+}
 
 const FIXED_TAGS_STORAGE_KEY = "sunoFixedStyleTags";
 const DEFAULT_FIXED_TAGS = [
@@ -243,7 +401,12 @@ async function regenerate() {
     const res = await fetch("/api/regenerate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ analysis: current.analysis, bpm: current.bpm, fixed_tags: getFixedTagsArray() }),
+      body: JSON.stringify({
+        analysis: current.analysis,
+        bpm: current.bpm,
+        fixed_tags: getFixedTagsArray(),
+        api_keys: getApiKeysForRequest(),
+      }),
     });
     const data = await res.json();
 
@@ -298,6 +461,7 @@ form.addEventListener("submit", async (e) => {
   const formData = new FormData();
   formData.append("file", file);
   getFixedTagsArray().forEach((tag) => formData.append("fixed_tags", tag));
+  getApiKeysForRequest().forEach((key) => formData.append("api_keys", key));
 
   try {
     const res = await fetch("/api/analyze", { method: "POST", body: formData });
@@ -339,7 +503,7 @@ categoryForm.addEventListener("submit", async (e) => {
     const res = await fetch("/api/analyze-category", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, fixed_tags: getFixedTagsArray() }),
+      body: JSON.stringify({ category, fixed_tags: getFixedTagsArray(), api_keys: getApiKeysForRequest() }),
     });
     const data = await res.json();
 

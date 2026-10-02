@@ -1,6 +1,5 @@
 """Audio feature extraction + Gemini-based style analysis for Suno prompt generation."""
 import json
-import os
 import time
 
 import numpy as np
@@ -15,20 +14,14 @@ GEMINI_MODEL = "gemini-3.6-flash"
 # its own copy in localStorage) supplies its own list — see build_suno_prompt.
 DEFAULT_FIXED_STYLE_TAGS = ["short punchy intro", "seamless repeating loop, no build-up or breakdown"]
 
-# Multiple keys can be provided (comma-separated) via GEMINI_API_KEYS so that
-# when one hits its free-tier quota, requests roll over to the next one
-# instead of failing. GEMINI_API_KEY (single key) still works as before.
-_api_keys_cache = None
+# API keys are supplied by the caller per request (entered in the browser's
+# settings dialog, never read from an environment variable or a file), so
+# that when one hits its free-tier quota, requests roll over to the next
+# one instead of failing. `_key_index` just remembers the last-known-good
+# key across calls so a later request doesn't re-try broken keys from
+# scratch; it's reset implicitly by the modulo below if the key list
+# shrinks or grows between calls.
 _key_index = 0
-
-
-def _load_api_keys():
-    global _api_keys_cache
-    if _api_keys_cache is not None:
-        return _api_keys_cache
-    raw = os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY") or ""
-    _api_keys_cache = [k.strip() for k in raw.split(",") if k.strip()]
-    return _api_keys_cache
 
 
 # Errors worth retrying on the *next* key: quota exhaustion (429), a
@@ -50,15 +43,15 @@ def _is_retryable_key_error(e):
     return any(marker in upper for marker in _RETRYABLE_MARKERS)
 
 
-def _generate_with_rotation(contents, config):
-    """Call Gemini, rotating through configured API keys whenever the
+def _generate_with_rotation(contents, config, api_keys):
+    """Call Gemini, rotating through the given API keys whenever the
     current one fails with a key/project-level error (quota, permission
     denial, transient server error). Starts from the last-known-good key
     index so subsequent calls don't re-try broken keys from scratch."""
-    keys = _load_api_keys()
+    keys = [k.strip() for k in (api_keys or []) if k and k.strip()]
     if not keys:
         raise RuntimeError(
-            "GEMINI_API_KEY(S) is not set. Copy .env.example to .env and fill in your key(s)."
+            "Gemini API 키가 설정되지 않았습니다. 설정(⋮) 메뉴에서 키를 추가해주세요."
         )
 
     global _key_index
@@ -193,7 +186,7 @@ def _trim_audio_bytes(file_path, max_seconds=90):
     return buf.getvalue()
 
 
-def analyze_with_gemini(file_path, local_features):
+def analyze_with_gemini(file_path, local_features, api_keys):
     """Send a trimmed audio clip to Gemini and return the structured style analysis."""
     audio_bytes = _trim_audio_bytes(file_path)
 
@@ -309,11 +302,12 @@ def analyze_with_gemini(file_path, local_features):
             response_mime_type="application/json",
             response_schema=GEMINI_ANALYSIS_SCHEMA,
         ),
+        api_keys=api_keys,
     )
     return json.loads(response.text)
 
 
-def analyze_category(category, count=VARIATION_BATCH_SIZE):
+def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
     """Text-only call (no audio/reference track at all) that asks Gemini to
     suggest home-shopping background-music styles fitting a free-text
     keyword description. The input can be a bare product category
@@ -392,11 +386,12 @@ def analyze_category(category, count=VARIATION_BATCH_SIZE):
             response_mime_type="application/json",
             response_schema=_variations_schema(count),
         ),
+        api_keys=api_keys,
     )
     return json.loads(response.text).get("variations") or []
 
 
-def regenerate_variations(previous_analysis, reference_bpm, count=VARIATION_BATCH_SIZE):
+def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARIATION_BATCH_SIZE):
     """Text-only follow-up call (no audio re-sent) that asks Gemini for a
     batch of new variations that preserve the previous analysis's core
     mood/energy while varying genre, tempo, and instrument choices. Used
@@ -480,6 +475,7 @@ def regenerate_variations(previous_analysis, reference_bpm, count=VARIATION_BATC
             response_mime_type="application/json",
             response_schema=_variations_schema(count),
         ),
+        api_keys=api_keys,
     )
     return json.loads(response.text).get("variations") or []
 

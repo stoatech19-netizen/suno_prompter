@@ -3,5 +3,4 @@ librosa==1.0.0
 soundfile==0.14.0
 numpy==2.5.2
 google-genai==2.17.0
-python-dotenv==1.2.2
 soxr==1.1.0
