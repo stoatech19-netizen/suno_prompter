@@ -27,11 +27,10 @@ const settingsDialog = document.getElementById("settings-dialog");
 
 settingsBtn.addEventListener("click", () => settingsDialog.showModal());
 settingsCloseBtn.addEventListener("click", () => settingsDialog.close());
-// Clicking the backdrop (a click whose target is the <dialog> itself, not
-// something inside it) should close too, matching native modal UX.
-settingsDialog.addEventListener("click", (e) => {
-  if (e.target === settingsDialog) settingsDialog.close();
-});
+// No backdrop-click-to-close: a drag-select in the textarea that ends
+// outside it can report the dialog itself as the click target, closing the
+// dialog by accident. The close button and the native Escape handling
+// (built into showModal()) are the only ways to close it.
 
 const FIXED_TAGS_STORAGE_KEY = "sunoFixedStyleTags";
 const DEFAULT_FIXED_TAGS = [
