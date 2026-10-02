@@ -37,15 +37,22 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # dev only: always serve fresh static files
 
 
-def _variation_result(analysis, fallback_bpm=None):
+def _variation_result(analysis, fallback_bpm=None, fixed_tags=None):
     bpm = analysis.get("bpm") or fallback_bpm
     return {
         "analysis": analysis,
-        "suno_prompt": build_suno_prompt(analysis, bpm),
+        "suno_prompt": build_suno_prompt(analysis, bpm, fixed_tags=fixed_tags),
         "title": analysis.get("title"),
         "lyrics_structure": build_lyrics_structure(analysis),
         "bpm": bpm,
     }
+
+
+def _fixed_tags_from_list(value):
+    if not isinstance(value, list):
+        return None
+    tags = [str(v).strip() for v in value if str(v).strip()]
+    return tags or None
 
 
 def _gemini_error_response(e):
@@ -86,6 +93,8 @@ def analyze():
     if ext not in ALLOWED_EXTENSIONS:
         return jsonify({"error": "mp3 또는 wav 파일만 업로드할 수 있습니다."}), 400
 
+    fixed_tags = _fixed_tags_from_list(request.form.getlist("fixed_tags"))
+
     temp_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}{ext}")
     try:
         file.save(temp_path)
@@ -110,8 +119,8 @@ def analyze():
         except Exception:
             extra = []
 
-        variations = [_variation_result(analysis, local_features.get("bpm"))]
-        variations += [_variation_result(v) for v in extra]
+        variations = [_variation_result(analysis, local_features.get("bpm"), fixed_tags)]
+        variations += [_variation_result(v, fixed_tags=fixed_tags) for v in extra]
 
         return jsonify({
             "local_features": local_features,
@@ -127,6 +136,7 @@ def analyze():
 def analyze_category_route():
     body = request.get_json(silent=True) or {}
     category = (body.get("category") or "").strip()
+    fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
 
     if not category:
         return jsonify({"error": "카테고리를 입력해주세요."}), 400
@@ -136,7 +146,7 @@ def analyze_category_route():
     except Exception as e:
         return _gemini_error_response(e)
 
-    return jsonify({"variations": [_variation_result(v) for v in variations]})
+    return jsonify({"variations": [_variation_result(v, fixed_tags=fixed_tags) for v in variations]})
 
 
 @app.route("/api/regenerate", methods=["POST"])
@@ -144,6 +154,7 @@ def regenerate():
     body = request.get_json(silent=True) or {}
     previous_analysis = body.get("analysis")
     reference_bpm = body.get("bpm")
+    fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
 
     if not isinstance(previous_analysis, dict):
         return jsonify({"error": "이전 분석 결과가 없습니다. 먼저 곡을 분석해주세요."}), 400
@@ -153,7 +164,7 @@ def regenerate():
     except Exception as e:
         return _gemini_error_response(e)
 
-    return jsonify({"variations": [_variation_result(v) for v in variations]})
+    return jsonify({"variations": [_variation_result(v, fixed_tags=fixed_tags) for v in variations]})
 
 
 if __name__ == "__main__":

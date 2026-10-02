@@ -10,21 +10,10 @@ from google.genai import types
 
 GEMINI_MODEL = "gemini-3.6-flash"
 
-# User-editable list of tags that always get appended to the generated Suno
-# Style prompt (e.g. intro feel, loop behavior) — see fixed_style_tags.txt.
-# Re-read from disk on every call (not cached) so edits made in Notepad take
-# effect on the very next generation without restarting the app.
-_FIXED_STYLE_TAGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixed_style_tags.txt")
-_DEFAULT_FIXED_STYLE_TAGS = ["short punchy intro", "seamless repeating loop, no build-up or breakdown"]
-
-
-def _load_fixed_style_tags():
-    try:
-        with open(_FIXED_STYLE_TAGS_PATH, "r", encoding="utf-8") as f:
-            tags = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
-    except OSError:
-        tags = []
-    return tags or _DEFAULT_FIXED_STYLE_TAGS
+# Tags that always get appended to the generated Suno Style prompt (e.g.
+# intro feel, loop behavior) unless the caller (the browser, which persists
+# its own copy in localStorage) supplies its own list — see build_suno_prompt.
+DEFAULT_FIXED_STYLE_TAGS = ["short punchy intro", "seamless repeating loop, no build-up or breakdown"]
 
 # Multiple keys can be provided (comma-separated) via GEMINI_API_KEYS so that
 # when one hits its free-tier quota, requests roll over to the next one
@@ -495,7 +484,7 @@ def regenerate_variations(previous_analysis, reference_bpm, count=VARIATION_BATC
     return json.loads(response.text).get("variations") or []
 
 
-def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000):
+def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None):
     """Assemble a comma-separated Suno 'Style of Music' string from the
     structured analysis, following Suno's current style-field guidance:
     front-load the most important tags (genre, then "instrumental", then
@@ -515,7 +504,8 @@ def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000):
     instruments = analysis.get("instruments") or []
     production = analysis.get("production_quality") or []
     energy = analysis.get("energy_level")
-    fixed_tags = _load_fixed_style_tags()
+    if fixed_tags is None:
+        fixed_tags = DEFAULT_FIXED_STYLE_TAGS
 
     def compose(mood_n, instr_n, prod_n):
         tags = []

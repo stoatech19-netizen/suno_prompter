@@ -20,6 +20,59 @@ const variationCounter = document.getElementById("variation-counter");
 const prevVariationBtn = document.getElementById("prev-variation-btn");
 const nextVariationBtn = document.getElementById("next-variation-btn");
 
+const fixedTagsInput = document.getElementById("fixed-tags-input");
+const settingsBtn = document.getElementById("settings-btn");
+const settingsCloseBtn = document.getElementById("settings-close-btn");
+const settingsDialog = document.getElementById("settings-dialog");
+
+settingsBtn.addEventListener("click", () => settingsDialog.showModal());
+settingsCloseBtn.addEventListener("click", () => settingsDialog.close());
+// Clicking the backdrop (a click whose target is the <dialog> itself, not
+// something inside it) should close too, matching native modal UX.
+settingsDialog.addEventListener("click", (e) => {
+  if (e.target === settingsDialog) settingsDialog.close();
+});
+
+const FIXED_TAGS_STORAGE_KEY = "sunoFixedStyleTags";
+const DEFAULT_FIXED_TAGS = [
+  "short punchy intro",
+  "seamless repeating loop, no build-up or breakdown",
+];
+
+// Fixed style tags live only in this browser's localStorage (never sent to
+// a file on disk), so a per-PC setting survives a page reload but isn't
+// subject to any corporate document-security policy that might lock/encrypt
+// a plain config file the way a .txt file on disk could be.
+function loadFixedTagsText() {
+  try {
+    const raw = localStorage.getItem(FIXED_TAGS_STORAGE_KEY);
+    if (raw !== null) return raw;
+  } catch {
+    // localStorage unavailable (private mode, blocked storage, etc.) — fall
+    // through to defaults for this session.
+  }
+  return DEFAULT_FIXED_TAGS.join("\n");
+}
+
+function saveFixedTagsText(value) {
+  try {
+    localStorage.setItem(FIXED_TAGS_STORAGE_KEY, value);
+  } catch {
+    // Ignore — worst case the setting just doesn't persist across reloads.
+  }
+}
+
+function getFixedTagsArray() {
+  return fixedTagsInput.value
+    .split("\n")
+    .flatMap((line) => line.split(","))
+    .map((tag) => tag.trim())
+    .filter((tag) => tag && !tag.startsWith("#"));
+}
+
+fixedTagsInput.value = loadFixedTagsText();
+fixedTagsInput.addEventListener("input", () => saveFixedTagsText(fixedTagsInput.value));
+
 const EMPTY_LOCAL_FEATURES = { duration_sec: null, bpm: null, key: null, mode: null };
 
 // Each tab keeps its own result state so switching tabs never loses what
@@ -191,7 +244,7 @@ async function regenerate() {
     const res = await fetch("/api/regenerate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ analysis: current.analysis, bpm: current.bpm }),
+      body: JSON.stringify({ analysis: current.analysis, bpm: current.bpm, fixed_tags: getFixedTagsArray() }),
     });
     const data = await res.json();
 
@@ -245,6 +298,7 @@ form.addEventListener("submit", async (e) => {
 
   const formData = new FormData();
   formData.append("file", file);
+  getFixedTagsArray().forEach((tag) => formData.append("fixed_tags", tag));
 
   try {
     const res = await fetch("/api/analyze", { method: "POST", body: formData });
@@ -286,7 +340,7 @@ categoryForm.addEventListener("submit", async (e) => {
     const res = await fetch("/api/analyze-category", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category }),
+      body: JSON.stringify({ category, fixed_tags: getFixedTagsArray() }),
     });
     const data = await res.json();
 

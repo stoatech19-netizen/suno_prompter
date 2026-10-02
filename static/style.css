@@ -36,6 +36,88 @@ body {
 h1 { font-size: 1.4rem; margin-bottom: 16px; }
 h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.page-header h1 { margin: 0; }
+
+.btn-icon {
+  margin-top: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1;
+}
+.btn-icon:hover { color: var(--fg); border-color: var(--accent); }
+
+.btn-kebab {
+  margin-top: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  font-size: 1.3rem;
+  line-height: 1;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.btn-kebab:hover { background: var(--border); color: var(--fg); }
+
+#settings-dialog {
+  width: min(460px, calc(100vw - 40px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 18px 20px;
+  box-sizing: border-box;
+}
+#settings-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.settings-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+#settings-dialog textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 0.85rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
 .mode-tabs {
   display: flex;
   gap: 4px;
