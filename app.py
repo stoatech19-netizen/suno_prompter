@@ -7,6 +7,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from analyzer import (
     CTA_LANGUAGE_NAMES,
+    CTA_TEMPO_HINTS,
     VARIATION_BATCH_SIZE,
     analyze_category,
     analyze_with_gemini,
@@ -58,6 +59,11 @@ def _cta_variation_result(analysis, fixed_tags=None):
 def _cta_language_from(value):
     language = (value or "ko").strip().lower()
     return language if language in CTA_LANGUAGE_NAMES else "ko"
+
+
+def _cta_tempo_from(value):
+    tempo = (value or "medium").strip().lower()
+    return tempo if tempo in CTA_TEMPO_HINTS else "medium"
 
 
 def _fixed_tags_from_list(value):
@@ -187,6 +193,7 @@ def generate_cta_route():
     body = request.get_json(silent=True) or {}
     keyword = (body.get("keyword") or "").strip()
     language = _cta_language_from(body.get("language"))
+    tempo = _cta_tempo_from(body.get("tempo"))
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
     api_keys = _api_keys_from_list(body.get("api_keys"))
 
@@ -196,7 +203,7 @@ def generate_cta_route():
         return _missing_api_keys_response()
 
     try:
-        variations = generate_cta(keyword, language, api_keys)
+        variations = generate_cta(keyword, language, tempo, api_keys)
     except Exception as e:
         return _gemini_error_response(e)
 
@@ -208,6 +215,7 @@ def regenerate_cta_route():
     body = request.get_json(silent=True) or {}
     previous_analysis = body.get("analysis")
     language = _cta_language_from(body.get("language"))
+    tempo = _cta_tempo_from(body.get("tempo"))
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
     api_keys = _api_keys_from_list(body.get("api_keys"))
 
@@ -217,7 +225,7 @@ def regenerate_cta_route():
         return _missing_api_keys_response()
 
     try:
-        variations = regenerate_cta(previous_analysis, language, api_keys)
+        variations = regenerate_cta(previous_analysis, language, tempo, api_keys)
     except Exception as e:
         return _gemini_error_response(e)
 

@@ -12,6 +12,7 @@ const categorySubmitBtn = document.getElementById("category-submit-btn");
 const ctaForm = document.getElementById("cta-form");
 const ctaKeywordInput = document.getElementById("cta-keyword-input");
 const ctaLanguageSelect = document.getElementById("cta-language-select");
+const ctaTempoSelect = document.getElementById("cta-tempo-select");
 const ctaSubmitBtn = document.getElementById("cta-submit-btn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
@@ -356,7 +357,7 @@ const EMPTY_LOCAL_FEATURES = { duration_sec: null, bpm: null, key: null, mode: n
 const tabState = {
   file: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0 },
   category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0 },
-  cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko" },
+  cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko", tempo: "medium" },
 };
 let activeTab = "file";
 let requestInFlight = false;
@@ -530,6 +531,7 @@ async function regenerate() {
           body: JSON.stringify({
             analysis: current.analysis,
             language: state.language,
+            tempo: state.tempo,
             fixed_tags: getCtaFixedTagsArray(),
             api_keys: getApiKeysForRequest(),
           }),
@@ -674,13 +676,14 @@ ctaForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const keyword = ctaKeywordInput.value.trim();
   const language = ctaLanguageSelect.value;
+  const tempo = ctaTempoSelect.value;
   if (!keyword || requestInFlight) return;
 
   requestInFlight = true;
   submitBtn.disabled = true;
   categorySubmitBtn.disabled = true;
   ctaSubmitBtn.disabled = true;
-  setStatus("CTA 송 프롬프트를 만드는 중입니다...", false);
+  setStatus("CTA 프롬프트를 만드는 중입니다...", false);
 
   try {
     const res = await fetch("/api/generate-cta", {
@@ -689,6 +692,7 @@ ctaForm.addEventListener("submit", async (e) => {
       body: JSON.stringify({
         keyword,
         language,
+        tempo,
         fixed_tags: getCtaFixedTagsArray(),
         api_keys: getApiKeysForRequest(),
       }),
@@ -705,6 +709,7 @@ ctaForm.addEventListener("submit", async (e) => {
     tabState.cta.variationBatch = data.variations || [];
     tabState.cta.variationIndex = 0;
     tabState.cta.language = language;
+    tabState.cta.tempo = tempo;
     if (activeTab === "cta") {
       showTabResult("cta");
     }

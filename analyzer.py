@@ -651,6 +651,20 @@ CTA_LANGUAGE_NAMES = {
     "zh": "Chinese",
 }
 
+# Each hint both sets the bpm band and, for "slow", clarifies that a
+# laid-back tempo doesn't mean under-produced -- the glossy/maximalist
+# polish from _CTA_GENRE_NOTE still applies regardless of tempo.
+CTA_TEMPO_HINTS = {
+    "fast": "FAST (~128-150 bpm) — festival EDM-pop or driving K-pop dance energy",
+    "medium": "MEDIUM (~100-124 bpm) — glossy, danceable pop energy, not frantic",
+    "slow": (
+        "SLOW (~70-96 bpm) — a more laid-back tempo, but still fully "
+        "polished and produced: think emotional pop/R&B-pop power "
+        "ballad rather than EDM-driven, with the chorus still lifting "
+        "into a fuller, bigger arrangement even at this slower pace"
+    ),
+}
+
 GEMINI_CTA_SCHEMA = {
     "type": "object",
     "properties": {
@@ -783,12 +797,14 @@ _CTA_SAFETY_NOTE = (
 )
 
 
-def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
+def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE):
     """Text-only call that asks Gemini for `count` distinct, COMPLETE songs
     (with vocals and normal song structure) promoting the given keyword/
-    topic, with lyrics written in the given language. Returns a list of
-    `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm."""
+    topic, with lyrics written in the given language at the given tempo
+    band. Returns a list of `count` variation dicts shaped like
+    GEMINI_CTA_SCHEMA plus bpm."""
     language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
+    tempo_hint = CTA_TEMPO_HINTS.get(tempo, CTA_TEMPO_HINTS["medium"])
     prompt = (
         "You are writing a short, catchy CALL-TO-ACTION (CTA) song for a "
         "Korean home-shopping/retail context, loosely inspired by the "
@@ -800,7 +816,8 @@ def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
         "intro, verse, chorus, possibly a bridge, outro) and it includes "
         "VOCALS — it is NOT a seamless instrumental loop. "
         f"Generate {count} DISTINCT options, each clearly different in "
-        "mood/tempo/instrumentation from the others. " + _CTA_GENRE_NOTE +
+        "mood/instrumentation from the others, but ALL options should "
+        f"share the same {tempo_hint} tempo feel. " + _CTA_GENRE_NOTE +
         " Each option needs: genre, a specific sub_genre, a vivid mood/"
         "energy list, 4 to 6 specific instruments/textures (a rhythm "
         "layer, a melodic/harmonic layer, and at least one distinctive "
@@ -814,8 +831,8 @@ def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
         "vocal harmonies', 'heavy sidechain pumping', 'punchy compressed "
         "drums') — avoid vague/generic praise like 'professional' or "
         "'radio-ready' alone, name the specific texture instead — "
-        "energy_level, a plausible bpm (dance/pop/EDM/K-pop tracks are "
-        "typically 100-135 bpm), and a short title in ENGLISH ONLY using "
+        f"energy_level, a bpm matching that {tempo} tempo band, and a "
+        "short title in ENGLISH ONLY using "
         "simple, everyday, concrete words. "
         "Also write lyrics_lines: an ORDERED array mixing Suno bracket "
         "section tags (e.g. \"[Verse 1]\", \"[Pre-Chorus]\", "
@@ -840,11 +857,12 @@ def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
     return _response_json(response).get("variations") or []
 
 
-def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_SIZE):
+def regenerate_cta(previous_analysis, language, tempo, api_keys, count=VARIATION_BATCH_SIZE):
     """Text-only follow-up call that asks Gemini for `count` new CTA song
     variations preserving the previous analysis's core mood/energy, for
     the 'regenerate' button on the CTA tab."""
     language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
+    tempo_hint = CTA_TEMPO_HINTS.get(tempo, CTA_TEMPO_HINTS["medium"])
     prev_mood = previous_analysis.get("mood") or []
     mood_note = f" Its core mood/energy was: {', '.join(prev_mood)}." if prev_mood else ""
 
@@ -854,8 +872,9 @@ def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_
         f"Generate {count} NEW variations in the same feel-good mood, "
         "each staying in the same overall genre/vibe family and "
         "preserving the SAME core mood/energy character." + mood_note + " "
-        "Create variety through different tempo, instrumentation, and "
-        "vocal_style, while every option remains a COMPLETE song with "
+        "Create variety through different instrumentation and "
+        f"vocal_style, but ALL options should share the same {tempo_hint} "
+        "tempo feel. Every option remains a COMPLETE song with "
         "vocals and normal song structure — NOT a repeating instrumental "
         "loop, and keeps the same glossy, maximalist, chart-ready pop/"
         "EDM/K-pop production polish as before (not a mellow/flat/plain "
@@ -864,7 +883,8 @@ def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_
         "instruments/textures, vocal_style, era_influence, 1 to 3 "
         "production descriptors naming specific glossy/maximalist "
         "textures (not vague praise like 'professional' alone), "
-        "energy_level, bpm, and an English title, plus its own "
+        f"energy_level, a bpm matching that {tempo} tempo band, and an "
+        "English title, plus its own "
         "lyrics_lines array (bracket section tags, optionally with a "
         "short parenthetical staging note, mixed with the actual lyric "
         "lines that follow each one). Write "
