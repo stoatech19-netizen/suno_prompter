@@ -21,14 +21,21 @@
     </div>
 
     <div class="mode-tabs">
-      <button type="button" id="settings-tab-tags" class="mode-tab active">고정 스타일 태그</button>
+      <button type="button" id="settings-tab-tags" class="mode-tab active">BGM 고정 태그</button>
+      <button type="button" id="settings-tab-cta-tags" class="mode-tab">CTA 고정 태그</button>
       <button type="button" id="settings-tab-keys" class="mode-tab">Gemini API 키</button>
     </div>
 
     <section id="settings-panel-tags">
-      <p class="settings-hint">모든 생성 결과의 Style 끝에 항상 포함되는 태그입니다. 한 칸에 태그 하나씩 입력하세요. 창을 닫으면 자동으로 저장됩니다.</p>
+      <p class="settings-hint">파일 분석/BGM 프롬프트 결과의 Style 끝에 항상 포함되는 태그입니다. 한 칸에 태그 하나씩 입력하세요. 창을 닫으면 자동으로 저장됩니다.</p>
       <div id="fixed-tags-list" class="key-list"></div>
       <button type="button" id="add-fixed-tag-btn" class="add-key-btn">+ 태그 추가</button>
+    </section>
+
+    <section id="settings-panel-cta-tags" hidden>
+      <p class="settings-hint">CTA 프롬프트 결과의 Style 끝에 항상 포함되는 태그입니다. BGM 고정 태그와는 별도로 관리되며, 완곡 구조에 맞지 않는 루프 전용 태그는 포함하지 않는 것이 좋습니다. 창을 닫으면 자동으로 저장됩니다.</p>
+      <div id="cta-fixed-tags-list" class="key-list"></div>
+      <button type="button" id="add-cta-fixed-tag-btn" class="add-key-btn">+ 태그 추가</button>
     </section>
 
     <section id="settings-panel-keys" hidden>
@@ -42,8 +49,9 @@
   </dialog>
 
   <div class="mode-tabs">
-    <button type="button" id="tab-file" class="mode-tab active">파일 업로드</button>
-    <button type="button" id="tab-category" class="mode-tab">카테고리 입력</button>
+    <button type="button" id="tab-file" class="mode-tab active">파일 분석</button>
+    <button type="button" id="tab-category" class="mode-tab">BGM 프롬프트</button>
+    <button type="button" id="tab-cta" class="mode-tab">CTA 프롬프트</button>
   </div>
 
   <form id="upload-form">
@@ -60,6 +68,19 @@
     <input type="text" id="category-input" class="category-input" autocomplete="off" placeholder="예: 주방가전, 50대 여성 패션, 20대 남성 뷰티 등">
     <div class="actions-row">
       <button type="submit" id="category-submit-btn" class="btn-solid" disabled>생성하기</button>
+    </div>
+  </form>
+
+  <form id="cta-form" hidden>
+    <input type="text" id="cta-keyword-input" class="category-input" autocomplete="off" placeholder="예: 여름 신상 원피스, 다이어트 보조제, 신규 가입 이벤트 등">
+    <div class="actions-row">
+      <select id="cta-language-select" class="lang-select" aria-label="가사 언어">
+        <option value="ko">한국어</option>
+        <option value="en">English</option>
+        <option value="ja">日本語</option>
+        <option value="zh">中文</option>
+      </select>
+      <button type="submit" id="cta-submit-btn" class="btn-solid" disabled>생성하기</button>
     </div>
   </form>
 

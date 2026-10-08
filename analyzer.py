@@ -19,6 +19,15 @@ DEFAULT_FIXED_STYLE_TAGS = [
     "relentless driving rhythm with unbroken momentum",
     "wall-of-sound density at uniform peak intensity throughout",
     "seamless repeating loop with identical energy at every point",
+    "punchy analog-saturated mix with tight, warm low end",
+]
+
+# Same idea as DEFAULT_FIXED_STYLE_TAGS, but for CTA (complete, vocal) songs
+# — deliberately NOT loop/no-sag tags, since a CTA track has normal song
+# structure. See build_cta_suno_prompt.
+DEFAULT_CTA_FIXED_STYLE_TAGS = [
+    "catchy, singable chorus hook that's easy to repeat after one listen",
+    "polished mix with a clear, present lead vocal",
 ]
 
 # API keys are supplied by the caller per request (entered in the browser's
@@ -487,6 +496,38 @@ def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARI
     return json.loads(response.text).get("variations") or []
 
 
+def _trim_tags_to_budget(compose, mood_n, instr_n, prod_n, max_tags):
+    """Shrink a composed tag list down to max_tags by dropping, in order:
+    production quality (least essential) -> mood -> instruments, down to
+    small floors, then further still as a last resort. Shared by both the
+    instrumental and CTA prompt builders so their trimming behavior can't
+    drift apart."""
+    tags = compose(mood_n, instr_n, prod_n)
+    while len(tags) > max_tags and prod_n > 0:
+        prod_n -= 1
+        tags = compose(mood_n, instr_n, prod_n)
+    while len(tags) > max_tags and mood_n > 2:
+        mood_n -= 1
+        tags = compose(mood_n, instr_n, prod_n)
+    while len(tags) > max_tags and instr_n > 3:
+        instr_n -= 1
+        tags = compose(mood_n, instr_n, prod_n)
+    while len(tags) > max_tags and mood_n > 1:
+        mood_n -= 1
+        tags = compose(mood_n, instr_n, prod_n)
+    while len(tags) > max_tags and instr_n > 1:
+        instr_n -= 1
+        tags = compose(mood_n, instr_n, prod_n)
+    return tags
+
+
+def _finalize_tags(tags, max_len):
+    prompt = ", ".join(tags)
+    if len(prompt) <= max_len:
+        return prompt
+    return prompt[: max_len - 1].rstrip(", ") + "…"
+
+
 def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None):
     """Assemble a comma-separated Suno 'Style of Music' string from the
     structured analysis, following Suno's current style-field guidance:
@@ -528,30 +569,8 @@ def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None)
         return tags
 
     mood_n, instr_n, prod_n = len(mood), len(instruments), len(production)
-    tags = compose(mood_n, instr_n, prod_n)
-
-    while len(tags) > max_tags and prod_n > 0:
-        prod_n -= 1
-        tags = compose(mood_n, instr_n, prod_n)
-    while len(tags) > max_tags and mood_n > 2:
-        mood_n -= 1
-        tags = compose(mood_n, instr_n, prod_n)
-    while len(tags) > max_tags and instr_n > 3:
-        instr_n -= 1
-        tags = compose(mood_n, instr_n, prod_n)
-    # Last-resort fallback so the budget is still respected even when the
-    # floors above aren't enough (e.g. a very long genre/era combo).
-    while len(tags) > max_tags and mood_n > 1:
-        mood_n -= 1
-        tags = compose(mood_n, instr_n, prod_n)
-    while len(tags) > max_tags and instr_n > 1:
-        instr_n -= 1
-        tags = compose(mood_n, instr_n, prod_n)
-
-    prompt = ", ".join(tags)
-    if len(prompt) <= max_len:
-        return prompt
-    return prompt[: max_len - 1].rstrip(", ") + "…"
+    tags = _trim_tags_to_budget(compose, mood_n, instr_n, prod_n, max_tags)
+    return _finalize_tags(tags, max_len)
 
 
 def build_lyrics_structure(analysis):
@@ -565,4 +584,225 @@ def build_lyrics_structure(analysis):
         if not (item.startswith("[") and item.endswith("]")):
             item = f"[{item}]"
         lines.append(item)
+    return "\n".join(lines)
+
+
+# --- CTA (call-to-action) songs: unlike the instrumental BGM modes above,
+# these are complete, normally-structured songs WITH vocals, meant to
+# promote a product/topic. They deliberately do not use the BGM
+# DEFAULT_FIXED_STYLE_TAGS (seamless-loop/no-sag) since a full song with a
+# beginning/middle/end is the opposite of a loop.
+
+CTA_LANGUAGE_NAMES = {
+    "ko": "Korean",
+    "en": "English",
+    "ja": "Japanese",
+    "zh": "Chinese",
+}
+
+GEMINI_CTA_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "genre": {"type": "string"},
+        "sub_genre": {"type": "string"},
+        "mood": {"type": "array", "items": {"type": "string"}},
+        "instruments": {"type": "array", "items": {"type": "string"}},
+        "vocal_style": {"type": "string"},
+        "era_influence": {"type": "string"},
+        "energy_level": {"type": "string"},
+        "production_quality": {"type": "array", "items": {"type": "string"}},
+        "title": {"type": "string"},
+        "bpm": {"type": "integer"},
+        "lyrics_lines": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        "genre", "mood", "instruments", "vocal_style", "energy_level",
+        "production_quality", "title", "bpm", "lyrics_lines",
+    ],
+}
+
+
+def _cta_variations_schema(count):
+    return {
+        "type": "object",
+        "properties": {
+            "variations": {
+                "type": "array",
+                "items": GEMINI_CTA_SCHEMA,
+                "minItems": count,
+                "maxItems": count,
+            },
+        },
+        "required": ["variations"],
+    }
+
+
+# Defense in depth alongside the prompt's own safety instructions below,
+# since lyrics_lines is free-form user-facing text that gets pasted
+# straight into Suno.
+_CTA_SAFETY_SETTINGS = [
+    types.SafetySetting(category=category, threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE)
+    for category in (
+        types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    )
+]
+
+_CTA_LENGTH_NOTE = (
+    "Suno times a generated song to the amount of lyric and section "
+    "content it's given, NOT to any duration mentioned in the style tags "
+    "— writing a short lyric gets a short (often under 1 minute) song "
+    "regardless of what the style says. To reliably get a full ~2 to 3 "
+    "minute song, use a complete structure: [Verse 1], [Chorus], "
+    "[Verse 2], [Chorus], a short [Bridge], [Chorus] again, then "
+    "[Outro]. Write 4 to 6 lyric lines for EACH verse/chorus/bridge "
+    "section (never just 1-2 lines), reuse the exact same chorus lyrics "
+    "every time [Chorus] appears, and aim for roughly 24 to 32 total "
+    "lyric lines across the whole song (not counting the bracket tags "
+    "themselves)."
+)
+
+_CTA_SAFETY_NOTE = (
+    "The lyrics must be LIGHT and SIMPLE: just basic, surface-level "
+    "information or feeling about the topic, with NO deep or complex "
+    "meaning — think of a short, fun, catchy radio/TV commercial jingle, "
+    "not a narrative song with an artistic message. The lyrics must be "
+    "completely clean and safe: no profanity, sexual content, violence, "
+    "hate speech, drugs, self-harm, political statements, or any other "
+    "harmful or inappropriate content — suitable for a general TV "
+    "shopping-channel audience of all ages."
+)
+
+
+def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
+    """Text-only call that asks Gemini for `count` distinct, COMPLETE songs
+    (with vocals and normal song structure) promoting the given keyword/
+    topic, with lyrics written in the given language. Returns a list of
+    `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm."""
+    language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
+    prompt = (
+        "You are writing a short, catchy CALL-TO-ACTION (CTA) promotional "
+        "song for a Korean home-shopping/retail context, about: "
+        f"'{keyword}'. Unlike background music, this is a COMPLETE, "
+        "fully-formed song with normal song structure (e.g. intro, verse, "
+        "chorus, possibly a bridge, outro) and it includes VOCALS — it is "
+        "NOT a seamless instrumental loop. "
+        f"Generate {count} DISTINCT options, each clearly different in "
+        "genre/mood/tempo/instrumentation from the others. "
+        "Each option needs: genre, a specific sub_genre, a vivid mood/"
+        "energy list, 4 to 6 specific instruments/textures (a rhythm "
+        "layer, a melodic/harmonic layer, and at least one distinctive "
+        "textural element), a vocal_style description (gender/tone/"
+        "delivery, e.g. 'bright female pop vocals, playful delivery'), "
+        "era_influence, 1 to 3 production/mix quality descriptors, "
+        "energy_level, a plausible bpm, and a short title in ENGLISH ONLY "
+        "using simple, everyday, concrete words. "
+        "Also write lyrics_lines: an ORDERED array mixing Suno bracket "
+        "section tags (e.g. \"[Verse 1]\", \"[Chorus]\", \"[Bridge]\", "
+        "\"[Outro]\") with the actual lyric lines that follow each tag, "
+        "in the exact order they should appear — a normal, COMPLETE song "
+        "structure (NOT a short 2-3 section repeating loop). " + _CTA_LENGTH_NOTE +
+        f" Write the actual lyric lines (not the bracket tags) in "
+        f"{language_name}. " + _CTA_SAFETY_NOTE + " Return them as a "
+        f"'variations' array of exactly {count} objects."
+    )
+
+    response = _generate_with_rotation(
+        contents=[prompt],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=_cta_variations_schema(count),
+            safety_settings=_CTA_SAFETY_SETTINGS,
+        ),
+        api_keys=api_keys,
+    )
+    return json.loads(response.text).get("variations") or []
+
+
+def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_SIZE):
+    """Text-only follow-up call that asks Gemini for `count` new CTA song
+    variations preserving the previous analysis's core mood/energy, for
+    the 'regenerate' button on the CTA tab."""
+    language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
+    prev_mood = previous_analysis.get("mood") or []
+    mood_note = f" Its core mood/energy was: {', '.join(prev_mood)}." if prev_mood else ""
+
+    prompt = (
+        "Here is a previous CTA song style analysis, as JSON:\n"
+        + json.dumps(previous_analysis, ensure_ascii=False) + "\n\n"
+        f"Generate {count} NEW variations for the same promotional topic, "
+        "each staying in the same overall genre/vibe family and "
+        "preserving the SAME core mood/energy character." + mood_note + " "
+        "Create variety through different tempo, instrumentation, and "
+        "vocal_style, while every option remains a COMPLETE song with "
+        "vocals and normal song structure — NOT a repeating instrumental "
+        "loop. " + _CTA_LENGTH_NOTE + " Each "
+        "option needs its own genre, sub_genre, mood list, 4 to 6 "
+        "instruments/textures, vocal_style, era_influence, 1 to 3 "
+        "production descriptors, energy_level, bpm, and an English "
+        "title, plus its own lyrics_lines array (bracket section tags "
+        "mixed with the actual lyric lines that follow each one). Write "
+        f"the lyric lines in {language_name}. " + _CTA_SAFETY_NOTE +
+        f" Return them as a 'variations' array of exactly {count} objects."
+    )
+
+    response = _generate_with_rotation(
+        contents=[prompt],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=_cta_variations_schema(count),
+            safety_settings=_CTA_SAFETY_SETTINGS,
+        ),
+        api_keys=api_keys,
+    )
+    return json.loads(response.text).get("variations") or []
+
+
+def build_cta_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None):
+    """Like build_suno_prompt, but for a complete vocal CTA song: includes
+    vocal_style instead of "instrumental", and uses DEFAULT_CTA_FIXED_STYLE_TAGS
+    (not the BGM-loop DEFAULT_FIXED_STYLE_TAGS) unless the caller supplies its
+    own list, since a full song with a beginning/middle/end should not be
+    forced into a seamless-loop shape."""
+    genre_bits = [b for b in [analysis.get("genre"), analysis.get("sub_genre")] if b]
+    era = analysis.get("era_influence")
+    mood = analysis.get("mood") or []
+    instruments = analysis.get("instruments") or []
+    production = analysis.get("production_quality") or []
+    energy = analysis.get("energy_level")
+    vocal_style = analysis.get("vocal_style")
+    if fixed_tags is None:
+        fixed_tags = DEFAULT_CTA_FIXED_STYLE_TAGS
+
+    def compose(mood_n, instr_n, prod_n):
+        tags = []
+        if genre_bits:
+            tags.append(" ".join(genre_bits))
+        if vocal_style:
+            tags.append(vocal_style)
+        if era:
+            tags.append(era)
+        tags.extend(mood[:mood_n])
+        tags.extend(instruments[:instr_n])
+        tags.extend(production[:prod_n])
+        if energy:
+            tags.append(energy)
+        tags.extend(fixed_tags)
+        if bpm:
+            tags.append(f"{bpm} bpm")
+        return tags
+
+    mood_n, instr_n, prod_n = len(mood), len(instruments), len(production)
+    tags = _trim_tags_to_budget(compose, mood_n, instr_n, prod_n, max_tags)
+    return _finalize_tags(tags, max_len)
+
+
+def build_cta_lyrics(analysis):
+    """Join Gemini's ordered [section tag] + lyric-line array into text
+    ready to paste into Suno's lyrics field. Unlike build_lyrics_structure,
+    this does NOT force every line into brackets, since most lines here
+    are actual sung lyrics, not structure-only meta-tags."""
+    lines = [str(line).strip() for line in (analysis.get("lyrics_lines") or []) if str(line).strip()]
     return "\n".join(lines)

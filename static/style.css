@@ -130,7 +130,7 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
   font-weight: 600;
 }
 
-#settings-panel-keys[hidden], #settings-panel-tags[hidden] { display: none; }
+#settings-panel-keys[hidden], #settings-panel-tags[hidden], #settings-panel-cta-tags[hidden] { display: none; }
 
 .key-list {
   display: flex;
@@ -296,6 +296,19 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
   box-sizing: border-box;
 }
 .category-input:focus { outline: none; border-color: var(--accent); }
+
+.lang-select {
+  height: 42px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.lang-select:focus { outline: none; border-color: var(--accent); }
 
 .dropzone {
   display: flex;

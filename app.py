@@ -6,12 +6,17 @@ from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from analyzer import (
+    CTA_LANGUAGE_NAMES,
     VARIATION_BATCH_SIZE,
     analyze_category,
     analyze_with_gemini,
+    build_cta_lyrics,
+    build_cta_suno_prompt,
     build_lyrics_structure,
     build_suno_prompt,
     extract_local_features,
+    generate_cta,
+    regenerate_cta,
     regenerate_variations,
 )
 
@@ -37,6 +42,22 @@ def _variation_result(analysis, fallback_bpm=None, fixed_tags=None):
         "lyrics_structure": build_lyrics_structure(analysis),
         "bpm": bpm,
     }
+
+
+def _cta_variation_result(analysis, fixed_tags=None):
+    bpm = analysis.get("bpm")
+    return {
+        "analysis": analysis,
+        "suno_prompt": build_cta_suno_prompt(analysis, bpm, fixed_tags=fixed_tags),
+        "title": analysis.get("title"),
+        "lyrics_structure": build_cta_lyrics(analysis),
+        "bpm": bpm,
+    }
+
+
+def _cta_language_from(value):
+    language = (value or "ko").strip().lower()
+    return language if language in CTA_LANGUAGE_NAMES else "ko"
 
 
 def _fixed_tags_from_list(value):
@@ -155,6 +176,48 @@ def analyze_category_route():
         return _gemini_error_response(e)
 
     return jsonify({"variations": [_variation_result(v, fixed_tags=fixed_tags) for v in variations]})
+
+
+@app.route("/api/generate-cta", methods=["POST"])
+def generate_cta_route():
+    body = request.get_json(silent=True) or {}
+    keyword = (body.get("keyword") or "").strip()
+    language = _cta_language_from(body.get("language"))
+    fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
+    api_keys = _api_keys_from_list(body.get("api_keys"))
+
+    if not keyword:
+        return jsonify({"error": "키워드를 입력해주세요."}), 400
+    if not api_keys:
+        return _missing_api_keys_response()
+
+    try:
+        variations = generate_cta(keyword, language, api_keys)
+    except Exception as e:
+        return _gemini_error_response(e)
+
+    return jsonify({"variations": [_cta_variation_result(v, fixed_tags) for v in variations]})
+
+
+@app.route("/api/regenerate-cta", methods=["POST"])
+def regenerate_cta_route():
+    body = request.get_json(silent=True) or {}
+    previous_analysis = body.get("analysis")
+    language = _cta_language_from(body.get("language"))
+    fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
+    api_keys = _api_keys_from_list(body.get("api_keys"))
+
+    if not isinstance(previous_analysis, dict):
+        return jsonify({"error": "이전 분석 결과가 없습니다. 먼저 생성해주세요."}), 400
+    if not api_keys:
+        return _missing_api_keys_response()
+
+    try:
+        variations = regenerate_cta(previous_analysis, language, api_keys)
+    except Exception as e:
+        return _gemini_error_response(e)
+
+    return jsonify({"variations": [_cta_variation_result(v, fixed_tags) for v in variations]})
 
 
 @app.route("/api/regenerate", methods=["POST"])
