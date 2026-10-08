@@ -20,7 +20,8 @@ const variationCounter = document.getElementById("variation-counter");
 const prevVariationBtn = document.getElementById("prev-variation-btn");
 const nextVariationBtn = document.getElementById("next-variation-btn");
 
-const fixedTagsInput = document.getElementById("fixed-tags-input");
+const fixedTagsList = document.getElementById("fixed-tags-list");
+const addFixedTagBtn = document.getElementById("add-fixed-tag-btn");
 const settingsBtn = document.getElementById("settings-btn");
 const settingsCloseBtn = document.getElementById("settings-close-btn");
 const settingsDialog = document.getElementById("settings-dialog");
@@ -192,43 +193,103 @@ if (getApiKeysForRequest().length === 0) {
 
 const FIXED_TAGS_STORAGE_KEY = "sunoFixedStyleTags";
 const DEFAULT_FIXED_TAGS = [
-  "short punchy intro",
-  "seamless repeating loop, no build-up or breakdown",
+  "full-energy hook hits from the very first second",
+  "relentless driving rhythm with unbroken momentum",
+  "wall-of-sound density at uniform peak intensity throughout",
+  "seamless repeating loop with identical energy at every point",
 ];
 
 // Fixed style tags live only in this browser's localStorage (never sent to
 // a file on disk), so a per-PC setting survives a page reload but isn't
 // subject to any corporate document-security policy that might lock/encrypt
-// a plain config file the way a .txt file on disk could be.
-function loadFixedTagsText() {
+// a plain config file the way a .txt file on disk could be. Stored as a
+// JSON array (one tag per settings-UI row, same shape as the API keys list)
+// so tags never run together without a visible separator between them.
+function loadFixedTags() {
+  let raw;
   try {
-    const raw = localStorage.getItem(FIXED_TAGS_STORAGE_KEY);
-    if (raw !== null) return raw;
+    raw = localStorage.getItem(FIXED_TAGS_STORAGE_KEY);
   } catch {
-    // localStorage unavailable (private mode, blocked storage, etc.) — fall
-    // through to defaults for this session.
+    return [...DEFAULT_FIXED_TAGS];
   }
-  return DEFAULT_FIXED_TAGS.join("\n");
+  if (raw === null) return [...DEFAULT_FIXED_TAGS];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Not JSON -- this is the old single-textarea format (newline- or
+    // comma-separated). Split it the same way that parser used to, so
+    // existing installs migrate straight into the new per-row list.
+  }
+  const migrated = raw
+    .split("\n")
+    .flatMap((line) => line.split(","))
+    .map((tag) => tag.trim())
+    .filter((tag) => tag && !tag.startsWith("#"));
+  return migrated.length ? migrated : [...DEFAULT_FIXED_TAGS];
 }
 
-function saveFixedTagsText(value) {
+function saveFixedTags() {
   try {
-    localStorage.setItem(FIXED_TAGS_STORAGE_KEY, value);
+    localStorage.setItem(FIXED_TAGS_STORAGE_KEY, JSON.stringify(fixedTags));
   } catch {
     // Ignore — worst case the setting just doesn't persist across reloads.
   }
 }
 
 function getFixedTagsArray() {
-  return fixedTagsInput.value
-    .split("\n")
-    .flatMap((line) => line.split(","))
-    .map((tag) => tag.trim())
-    .filter((tag) => tag && !tag.startsWith("#"));
+  return fixedTags.map((tag) => tag.trim()).filter(Boolean);
 }
 
-fixedTagsInput.value = loadFixedTagsText();
-fixedTagsInput.addEventListener("input", () => saveFixedTagsText(fixedTagsInput.value));
+let fixedTags = loadFixedTags();
+
+function removeFixedTag(index) {
+  fixedTags.splice(index, 1);
+  saveFixedTags();
+  renderFixedTags();
+}
+
+function renderFixedTags() {
+  fixedTagsList.innerHTML = "";
+  fixedTags.forEach((value, index) => {
+    const row = document.createElement("div");
+    row.className = "tag-row";
+
+    const input = document.createElement("input");
+    input.id = `fixed-tag-input-${index}`;
+    input.type = "text";
+    input.value = value;
+    input.placeholder = "태그 입력";
+    input.autocomplete = "off";
+    input.addEventListener("input", (e) => {
+      fixedTags[index] = e.target.value;
+      saveFixedTags();
+    });
+    row.appendChild(input);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-tag-btn";
+    removeBtn.textContent = "✕";
+    removeBtn.setAttribute("aria-label", `태그 ${index + 1} 삭제`);
+    removeBtn.title = "삭제";
+    removeBtn.addEventListener("click", () => removeFixedTag(index));
+    row.appendChild(removeBtn);
+
+    fixedTagsList.appendChild(row);
+  });
+}
+
+addFixedTagBtn.addEventListener("click", () => {
+  const index = fixedTags.length;
+  fixedTags.push("");
+  saveFixedTags();
+  renderFixedTags();
+  const el = document.getElementById(`fixed-tag-input-${index}`);
+  if (el) el.focus();
+});
+
+renderFixedTags();
 
 const EMPTY_LOCAL_FEATURES = { duration_sec: null, bpm: null, key: null, mode: null };
 
