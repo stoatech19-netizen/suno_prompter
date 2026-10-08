@@ -12,7 +12,14 @@ GEMINI_MODEL = "gemini-3.6-flash"
 # Tags that always get appended to the generated Suno Style prompt (e.g.
 # intro feel, loop behavior) unless the caller (the browser, which persists
 # its own copy in localStorage) supplies its own list — see build_suno_prompt.
-DEFAULT_FIXED_STYLE_TAGS = ["short punchy intro", "seamless repeating loop, no build-up or breakdown"]
+# Phrased positively (no "no build-up"/"intro") since negative instructions
+# are less reliable for Suno to follow than stating what should happen instead.
+DEFAULT_FIXED_STYLE_TAGS = [
+    "full-energy hook hits from the very first second",
+    "relentless driving rhythm with unbroken momentum",
+    "wall-of-sound density at uniform peak intensity throughout",
+    "seamless repeating loop with identical energy at every point",
+]
 
 # API keys are supplied by the caller per request (entered in the browser's
 # settings dialog, never read from an environment variable or a file), so
