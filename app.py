@@ -88,7 +88,11 @@ def _gemini_error_response(e):
         return jsonify({"error": "Gemini API 무료 한도를 초과했습니다. 잠시 후 다시 시도해주세요."}), 429
     if "403" in message or "PERMISSION_DENIED" in upper:
         return jsonify({"error": "Gemini API 키(프로젝트)가 접근이 거부된 상태입니다. API 키 상태를 확인해주세요."}), 403
-    return jsonify({"error": "분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
+    if "503" in message or "UNAVAILABLE" in upper:
+        return jsonify({"error": "Gemini 서버가 일시적으로 혼잡합니다 (503). 잠시 후 다시 시도해주세요."}), 503
+    if "500" in message or ("INTERNAL" in upper and "PERMISSION" not in upper):
+        return jsonify({"error": "Gemini 서버에 일시적인 오류가 발생했습니다 (500). 잠시 후 다시 시도해주세요."}), 502
+    return jsonify({"error": f"분석 중 오류가 발생했습니다 ({message[:120]}). 잠시 후 다시 시도해주세요."}), 500
 
 
 @app.errorhandler(RequestEntityTooLarge)

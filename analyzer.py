@@ -109,20 +109,36 @@ _BLOCKED_FINISH_REASONS = {
 }
 
 
-def _response_json(response):
-    """Parse a Gemini JSON response, raising a clear RuntimeError instead of
-    a bare TypeError when Gemini returned no usable candidate (blocked by
-    safety filters, blocked by copyright/recitation matching, or truncated
-    by the token limit). Without this, response.text is None in that case
-    and json.loads(None) blows up with a message that tells the user
-    nothing, surfacing as a generic 500 with no indication of why."""
-    text = response.text
-    if text:
-        return json.loads(text)
-
+def _response_finish_reason_name(response):
     candidates = response.candidates or []
     finish_reason = candidates[0].finish_reason if candidates else None
-    reason_name = getattr(finish_reason, "name", None) or (str(finish_reason) if finish_reason else None)
+    return getattr(finish_reason, "name", None) or (str(finish_reason) if finish_reason else None)
+
+
+def _response_json(response):
+    """Parse a Gemini JSON response, raising a clear RuntimeError instead of
+    a bare TypeError/JSONDecodeError when Gemini didn't actually return a
+    complete, well-formed JSON payload: either no usable candidate at all
+    (response.text is None -- blocked by safety filters, blocked by
+    copyright/recitation matching) or a candidate that got cut off
+    mid-response by the token limit (text is present but truncated, so it's
+    not valid JSON). Without this, json.loads() blows up with a message
+    that tells the user nothing, surfacing as a generic 500 with no
+    indication of why."""
+    text = response.text
+    if text:
+        try:
+            return json.loads(text)
+        except ValueError:
+            reason_name = _response_finish_reason_name(response)
+            raise RuntimeError(
+                _BLOCKED_FINISH_REASONS.get(
+                    reason_name,
+                    "Gemini 응답을 해석할 수 없습니다 (형식 오류). 잠시 후 다시 시도해주세요.",
+                )
+            )
+
+    reason_name = _response_finish_reason_name(response)
     raise RuntimeError(
         _BLOCKED_FINISH_REASONS.get(
             reason_name,
