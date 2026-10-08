@@ -95,6 +95,41 @@ def _generate_with_rotation(contents, config, api_keys):
             raise
     raise last_err
 
+
+# finish_reason values that mean Gemini deliberately withheld the response
+# rather than something going wrong on our end; worth telling the user about
+# specifically instead of a generic "something went wrong".
+_BLOCKED_FINISH_REASONS = {
+    "SAFETY": "Gemini의 안전 정책으로 인해 이번 요청이 차단되었습니다. 다른 키워드나 표현으로 다시 시도해주세요.",
+    "PROHIBITED_CONTENT": "Gemini의 안전 정책으로 인해 이번 요청이 차단되었습니다. 다른 키워드나 표현으로 다시 시도해주세요.",
+    "BLOCKLIST": "Gemini의 안전 정책으로 인해 이번 요청이 차단되었습니다. 다른 키워드나 표현으로 다시 시도해주세요.",
+    "SPII": "Gemini의 안전 정책으로 인해 이번 요청이 차단되었습니다. 다른 키워드나 표현으로 다시 시도해주세요.",
+    "RECITATION": "Gemini가 저작권 보호 콘텐츠와 유사하다고 판단해 응답을 거부했습니다. 다시 시도해주세요.",
+    "MAX_TOKENS": "응답이 길이 제한을 초과해 잘렸습니다. 잠시 후 다시 시도해주세요.",
+}
+
+
+def _response_json(response):
+    """Parse a Gemini JSON response, raising a clear RuntimeError instead of
+    a bare TypeError when Gemini returned no usable candidate (blocked by
+    safety filters, blocked by copyright/recitation matching, or truncated
+    by the token limit). Without this, response.text is None in that case
+    and json.loads(None) blows up with a message that tells the user
+    nothing, surfacing as a generic 500 with no indication of why."""
+    text = response.text
+    if text:
+        return json.loads(text)
+
+    candidates = response.candidates or []
+    finish_reason = candidates[0].finish_reason if candidates else None
+    reason_name = getattr(finish_reason, "name", None) or (str(finish_reason) if finish_reason else None)
+    raise RuntimeError(
+        _BLOCKED_FINISH_REASONS.get(
+            reason_name,
+            "Gemini로부터 빈 응답을 받았습니다. 잠시 후 다시 시도해주세요.",
+        )
+    )
+
 # Krumhansl-Schmuckler key profiles
 _MAJOR_PROFILE = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 _MINOR_PROFILE = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
@@ -320,7 +355,7 @@ def analyze_with_gemini(file_path, local_features, api_keys):
         ),
         api_keys=api_keys,
     )
-    return json.loads(response.text)
+    return _response_json(response)
 
 
 def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
@@ -404,7 +439,7 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
         ),
         api_keys=api_keys,
     )
-    return json.loads(response.text).get("variations") or []
+    return _response_json(response).get("variations") or []
 
 
 def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARIATION_BATCH_SIZE):
@@ -493,7 +528,7 @@ def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARI
         ),
         api_keys=api_keys,
     )
-    return json.loads(response.text).get("variations") or []
+    return _response_json(response).get("variations") or []
 
 
 def _trim_tags_to_budget(compose, mood_n, instr_n, prod_n, max_tags):
@@ -639,9 +674,13 @@ def _cta_variations_schema(count):
 
 # Defense in depth alongside the prompt's own safety instructions below,
 # since lyrics_lines is free-form user-facing text that gets pasted
-# straight into Suno.
+# straight into Suno. BLOCK_MEDIUM_AND_ABOVE (not BLOCK_LOW_AND_ABOVE): the
+# "low" threshold blocks on the slightest trace of a flagged category,
+# which produces frequent false-positive blocks on ordinary commercial
+# jingle lyrics (worse for non-English languages); medium still blocks
+# genuinely harmful content while cutting those false positives down.
 _CTA_SAFETY_SETTINGS = [
-    types.SafetySetting(category=category, threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE)
+    types.SafetySetting(category=category, threshold=types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE)
     for category in (
         types.HarmCategory.HARM_CATEGORY_HARASSMENT,
         types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -718,7 +757,7 @@ def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
         ),
         api_keys=api_keys,
     )
-    return json.loads(response.text).get("variations") or []
+    return _response_json(response).get("variations") or []
 
 
 def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_SIZE):
@@ -757,7 +796,7 @@ def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_
         ),
         api_keys=api_keys,
     )
-    return json.loads(response.text).get("variations") or []
+    return _response_json(response).get("variations") or []
 
 
 def build_cta_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None):
