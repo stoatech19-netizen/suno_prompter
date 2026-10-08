@@ -719,15 +719,29 @@ _CTA_LENGTH_NOTE = (
     "themselves)."
 )
 
+_CTA_CONTENT_NOTE = (
+    "IMPORTANT: Do NOT write the lyrics as product advertising copy — "
+    "avoid describing the topic's features, price, quality, or any 'buy "
+    "this now' sales pitch; that reads as awkward and unnatural in a "
+    "song. Instead, let the lyrics freely express a warm, everyday "
+    "feel-good mood only loosely inspired by the topic's vibe — simple, "
+    "universal feelings like 'feeling good today', 'isn't there "
+    "something fun out there?', 'daydreaming about something nice', 'an "
+    "easy, relaxed mood', 'a fluttering, excited feeling', or 'just "
+    "plain happiness'. The lyrics do NOT need to mention the topic/"
+    "product at all — treat it only as a loose mood/occasion cue (e.g. "
+    "a season, a shopping trip, an everyday moment), never as something "
+    "the song has to describe or sell."
+)
+
 _CTA_SAFETY_NOTE = (
-    "The lyrics must be LIGHT and SIMPLE: just basic, surface-level "
-    "information or feeling about the topic, with NO deep or complex "
-    "meaning — think of a short, fun, catchy radio/TV commercial jingle, "
-    "not a narrative song with an artistic message. The lyrics must be "
-    "completely clean and safe: no profanity, sexual content, violence, "
-    "hate speech, drugs, self-harm, political statements, or any other "
-    "harmful or inappropriate content — suitable for a general TV "
-    "shopping-channel audience of all ages."
+    "The lyrics must be LIGHT and SIMPLE, with NO deep or complex "
+    "meaning — think of a short, catchy, feel-good radio/TV jingle mood "
+    "piece, not a narrative song with an artistic message. " + _CTA_CONTENT_NOTE +
+    " The lyrics must be completely clean and safe: no profanity, sexual "
+    "content, violence, hate speech, drugs, self-harm, political "
+    "statements, or any other harmful or inappropriate content — "
+    "suitable for a general TV shopping-channel audience of all ages."
 )
 
 
@@ -738,12 +752,15 @@ def generate_cta(keyword, language, api_keys, count=VARIATION_BATCH_SIZE):
     `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm."""
     language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
     prompt = (
-        "You are writing a short, catchy CALL-TO-ACTION (CTA) promotional "
-        "song for a Korean home-shopping/retail context, about: "
-        f"'{keyword}'. Unlike background music, this is a COMPLETE, "
-        "fully-formed song with normal song structure (e.g. intro, verse, "
-        "chorus, possibly a bridge, outro) and it includes VOCALS — it is "
-        "NOT a seamless instrumental loop. "
+        "You are writing a short, catchy CALL-TO-ACTION (CTA) song for a "
+        "Korean home-shopping/retail context, loosely inspired by the "
+        f"mood/occasion of: '{keyword}'. This is NOT a jingle that "
+        "describes or sells that topic directly — it's a warm, upbeat "
+        "feel-good mood piece the topic merely nudges the vibe of (see "
+        "the lyrics guidance below). Unlike background music, this is a "
+        "COMPLETE, fully-formed song with normal song structure (e.g. "
+        "intro, verse, chorus, possibly a bridge, outro) and it includes "
+        "VOCALS — it is NOT a seamless instrumental loop. "
         f"Generate {count} DISTINCT options, each clearly different in "
         "genre/mood/tempo/instrumentation from the others. "
         "Each option needs: genre, a specific sub_genre, a vivid mood/"
@@ -787,7 +804,7 @@ def regenerate_cta(previous_analysis, language, api_keys, count=VARIATION_BATCH_
     prompt = (
         "Here is a previous CTA song style analysis, as JSON:\n"
         + json.dumps(previous_analysis, ensure_ascii=False) + "\n\n"
-        f"Generate {count} NEW variations for the same promotional topic, "
+        f"Generate {count} NEW variations in the same feel-good mood, "
         "each staying in the same overall genre/vibe family and "
         "preserving the SAME core mood/energy character." + mood_note + " "
         "Create variety through different tempo, instrumentation, and "
