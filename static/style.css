@@ -22,9 +22,12 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  font-family: "Noto Sans KR", -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
   background: var(--bg);
   color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .container {
@@ -201,7 +204,7 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
   outline: none;
   padding: 2px 0;
 }
-.key-row-main input::placeholder { color: var(--muted); font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+.key-row-main input::placeholder { color: var(--muted); font-family: "Noto Sans KR", -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
 .reveal-key-btn {
   margin-top: 0;
   flex-shrink: 0;
