@@ -187,8 +187,8 @@ GEMINI_VARIATION_ITEM_SCHEMA = {
     "required": GEMINI_ANALYSIS_SCHEMA["required"] + ["bpm"],
 }
 
-def _variations_schema(count):
-    return {
+def _variations_schema(count, with_input_style=False):
+    schema = {
         "type": "object",
         "properties": {
             "variations": {
@@ -200,6 +200,18 @@ def _variations_schema(count):
         },
         "required": ["variations"],
     }
+    if with_input_style:
+        # Lets the caller (app.py) know whether the free-text request was a
+        # product/category keyword or a literal music description, so it can
+        # skip appending the user's "고정 스타일 태그" fixed tags for the
+        # latter -- those tags assume generic high-energy retail BGM and
+        # would otherwise clash with e.g. a request for calm cafe music.
+        schema["properties"]["input_style"] = {
+            "type": "string",
+            "enum": ["category", "literal"],
+        }
+        schema["required"].append("input_style")
+    return schema
 
 
 def extract_local_features(file_path):
@@ -381,8 +393,9 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
     '50대 여성 패션') OR a direct natural-language description of the music
     itself (e.g. '카페에서 틀기 좋은 잔잔한 음악', '국악을 재즈 오케스트라랑
     퓨전시킨 음악') — see the prompt below for how each is handled. Returns a
-    list of `count` variation dicts in the same shape as
-    regenerate_variations."""
+    tuple of (list of `count` variation dicts in the same shape as
+    regenerate_variations, input_style -- "category" or "literal", so the
+    caller knows whether to apply the user's fixed style tags)."""
     prompt = (
         "You are creating INSTRUMENTAL background music to fit a free-text request. "
         f"The request is: '{category}'. "
@@ -463,7 +476,9 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
         "instrumentation/texture of that passage (e.g. \"[Strings Layer]\", \"[Rhythmic "
         "Break]\") rather than positional/narrative words like \"start\", \"intro\", "
         "\"buildup\", \"breakdown\", \"fade\", or \"outro\". "
-        "No vocal/lyric tags like [Verse] or [Chorus]. Return them as a 'variations' array of "
+        "No vocal/lyric tags like [Verse] or [Chorus]. Also set input_style to \"category\" if "
+        "you used interpretation (A) above, or \"literal\" if you used interpretation (B). "
+        "Return the variations as a 'variations' array of "
         f"exactly {count} objects."
     )
 
@@ -471,11 +486,12 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
         contents=[prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=_variations_schema(count),
+            response_schema=_variations_schema(count, with_input_style=True),
         ),
         api_keys=api_keys,
     )
-    return _response_json(response).get("variations") or []
+    data = _response_json(response)
+    return data.get("variations") or [], data.get("input_style")
 
 
 def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARIATION_BATCH_SIZE):
@@ -707,8 +723,8 @@ GEMINI_CTA_SCHEMA = {
 }
 
 
-def _cta_variations_schema(count):
-    return {
+def _cta_variations_schema(count, with_input_style=False):
+    schema = {
         "type": "object",
         "properties": {
             "variations": {
@@ -720,6 +736,14 @@ def _cta_variations_schema(count):
         },
         "required": ["variations"],
     }
+    if with_input_style:
+        # See _variations_schema's comment -- same purpose, for the CTA keyword.
+        schema["properties"]["input_style"] = {
+            "type": "string",
+            "enum": ["category", "literal"],
+        }
+        schema["required"].append("input_style")
+    return schema
 
 
 # Defense in depth alongside the prompt's own safety instructions below,
@@ -828,8 +852,10 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
     keyword can be EITHER a product/topic/occasion to loosely nudge the
     vibe of (e.g. '여름 신상 원피스') OR a direct description of the song's
     own desired genre/mood (e.g. '트로트풍 홍보송', '발라드 느낌의 축하곡') —
-    see the prompt below for how each is handled. Returns a list of
-    `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm."""
+    see the prompt below for how each is handled. Returns a tuple of
+    (list of `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm,
+    input_style -- "category" or "literal", so the caller knows whether to
+    apply the user's fixed style tags)."""
     language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
     tempo_hint = CTA_TEMPO_HINTS.get(tempo, CTA_TEMPO_HINTS["medium"])
     prompt = (
@@ -890,20 +916,22 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
         "appear — a normal, COMPLETE song structure (NOT a short 2-3 "
         "section repeating loop). " + _CTA_LENGTH_NOTE + " " + _CTA_DYNAMICS_NOTE +
         f" Write the actual lyric lines (not the bracket tags) in "
-        f"{language_name}. " + _CTA_SAFETY_NOTE + " Return them as a "
-        f"'variations' array of exactly {count} objects."
+        f"{language_name}. " + _CTA_SAFETY_NOTE + " Also set input_style to \"category\" if "
+        "you used interpretation (A) above, or \"literal\" if you used interpretation (B). "
+        f"Return the variations as a 'variations' array of exactly {count} objects."
     )
 
     response = _generate_with_rotation(
         contents=[prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=_cta_variations_schema(count),
+            response_schema=_cta_variations_schema(count, with_input_style=True),
             safety_settings=_CTA_SAFETY_SETTINGS,
         ),
         api_keys=api_keys,
     )
-    return _response_json(response).get("variations") or []
+    data = _response_json(response)
+    return data.get("variations") or [], data.get("input_style")
 
 
 def regenerate_cta(previous_analysis, language, tempo, api_keys, count=VARIATION_BATCH_SIZE):

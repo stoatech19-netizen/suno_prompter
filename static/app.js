@@ -356,8 +356,12 @@ const EMPTY_LOCAL_FEATURES = { duration_sec: null, bpm: null, key: null, mode: n
 // it completes.
 const tabState = {
   file: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0 },
-  category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0 },
-  cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko", tempo: "medium" },
+  // inputStyle ("category" or "literal") comes back from the server, which
+  // has Gemini decide whether the typed keyword was a product/category or a
+  // literal music description; "literal" means the fixed style tags get
+  // skipped (see regenerate() below, which resends it on every "다시 생성").
+  category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, inputStyle: null },
+  cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko", tempo: "medium", inputStyle: null },
 };
 let activeTab = "file";
 let requestInFlight = false;
@@ -534,6 +538,7 @@ async function regenerate() {
             tempo: state.tempo,
             fixed_tags: getCtaFixedTagsArray(),
             api_keys: getApiKeysForRequest(),
+            input_style: state.inputStyle,
           }),
         })
       : await fetch("/api/regenerate", {
@@ -544,6 +549,7 @@ async function regenerate() {
             bpm: current.bpm,
             fixed_tags: getFixedTagsArray(),
             api_keys: getApiKeysForRequest(),
+            input_style: state.inputStyle,
           }),
         });
     const data = await res.json();
@@ -556,6 +562,9 @@ async function regenerate() {
     setStatus(null);
     state.variationBatch = data.variations || [];
     state.variationIndex = 0;
+    if ("input_style" in data) {
+      state.inputStyle = data.input_style;
+    }
     if (activeTab === tab) {
       showTabResult(tab);
     }
@@ -658,6 +667,7 @@ categoryForm.addEventListener("submit", async (e) => {
     tabState.category.localFeatures = EMPTY_LOCAL_FEATURES;
     tabState.category.variationBatch = data.variations || [];
     tabState.category.variationIndex = 0;
+    tabState.category.inputStyle = data.input_style ?? null;
     if (activeTab === "category") {
       showTabResult("category");
     }
@@ -710,6 +720,7 @@ ctaForm.addEventListener("submit", async (e) => {
     tabState.cta.variationIndex = 0;
     tabState.cta.language = language;
     tabState.cta.tempo = tempo;
+    tabState.cta.inputStyle = data.input_style ?? null;
     if (activeTab === "cta") {
       showTabResult("cta");
     }

@@ -210,11 +210,20 @@ def analyze_category_route():
         return _missing_api_keys_response()
 
     try:
-        variations = analyze_category(category, api_keys)
+        variations, input_style = analyze_category(category, api_keys)
     except Exception as e:
         return _gemini_error_response(e)
 
-    return jsonify({"variations": [_variation_result(v, fixed_tags=fixed_tags) for v in variations]})
+    # A "literal" request already describes the music directly, so the
+    # user's fixed style tags (written for generic high-energy retail BGM)
+    # would fight it -- e.g. forcing "relentless driving rhythm" onto a
+    # request for calm cafe music. Skip them for that case; a "category"
+    # request still gets them as before.
+    effective_fixed_tags = [] if input_style == "literal" else fixed_tags
+    return jsonify({
+        "variations": [_variation_result(v, fixed_tags=effective_fixed_tags) for v in variations],
+        "input_style": input_style,
+    })
 
 
 @app.route("/api/generate-cta", methods=["POST"])
@@ -232,11 +241,17 @@ def generate_cta_route():
         return _missing_api_keys_response()
 
     try:
-        variations = generate_cta(keyword, language, tempo, api_keys)
+        variations, input_style = generate_cta(keyword, language, tempo, api_keys)
     except Exception as e:
         return _gemini_error_response(e)
 
-    return jsonify({"variations": [_cta_variation_result(v, fixed_tags) for v in variations]})
+    # See analyze_category_route: a "literal" genre/mood request overrides
+    # the user's fixed CTA style tags instead of fighting them.
+    effective_fixed_tags = [] if input_style == "literal" else fixed_tags
+    return jsonify({
+        "variations": [_cta_variation_result(v, effective_fixed_tags) for v in variations],
+        "input_style": input_style,
+    })
 
 
 @app.route("/api/regenerate-cta", methods=["POST"])
@@ -247,6 +262,10 @@ def regenerate_cta_route():
     tempo = _cta_tempo_from(body.get("tempo"))
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
     api_keys = _api_keys_from_list(body.get("api_keys"))
+    # Carried over from the batch's original analyze/generate response (the
+    # browser resends it on every regenerate) so a "literal" request keeps
+    # skipping the fixed style tags across regenerates too.
+    input_style = body.get("input_style")
 
     if not isinstance(previous_analysis, dict):
         return jsonify({"error": "이전 분석 결과가 없습니다. 먼저 생성해주세요."}), 400
@@ -258,7 +277,11 @@ def regenerate_cta_route():
     except Exception as e:
         return _gemini_error_response(e)
 
-    return jsonify({"variations": [_cta_variation_result(v, fixed_tags) for v in variations]})
+    effective_fixed_tags = [] if input_style == "literal" else fixed_tags
+    return jsonify({
+        "variations": [_cta_variation_result(v, effective_fixed_tags) for v in variations],
+        "input_style": input_style,
+    })
 
 
 @app.route("/api/regenerate", methods=["POST"])
@@ -268,6 +291,10 @@ def regenerate():
     reference_bpm = body.get("bpm")
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
     api_keys = _api_keys_from_list(body.get("api_keys"))
+    # See regenerate_cta_route: carried over from the category batch's
+    # original /api/analyze-category response, absent (None) for the file
+    # upload tab, which always applies the fixed tags as before.
+    input_style = body.get("input_style")
 
     if not isinstance(previous_analysis, dict):
         return jsonify({"error": "이전 분석 결과가 없습니다. 먼저 곡을 분석해주세요."}), 400
@@ -279,7 +306,11 @@ def regenerate():
     except Exception as e:
         return _gemini_error_response(e)
 
-    return jsonify({"variations": [_variation_result(v, fixed_tags=fixed_tags) for v in variations]})
+    effective_fixed_tags = [] if input_style == "literal" else fixed_tags
+    return jsonify({
+        "variations": [_variation_result(v, fixed_tags=effective_fixed_tags) for v in variations],
+        "input_style": input_style,
+    })
 
 
 if __name__ == "__main__":
