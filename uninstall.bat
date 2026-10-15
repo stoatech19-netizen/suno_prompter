@@ -67,6 +67,31 @@ if exist ".python_installed_by_setup.txt" (
     del /f /q ".python_installed_by_setup.txt" >nul 2>nul
 )
 
+if exist ".git_installed_by_bootstrap.txt" (
+    echo.
+    echo ------------------------------------------------------------
+    echo NOTE: bootstrap.bat also installed Git on this PC, because
+    echo no working git was found here before.
+    echo.
+    set /p "REMOVEGIT=Also uninstall Git now? (y/n): "
+    if /i "!REMOVEGIT!"=="y" (
+        where git >nul 2>nul
+        if !errorlevel! equ 0 (
+            for /f "delims=" %%G in ('where git') do set "GITEXE=%%G"
+            for %%G in ("!GITEXE!") do set "GITBINDIR=%%~dpG"
+            echo [INFO] Uninstalling Git...
+            "!GITBINDIR!..\unins000.exe" /VERYSILENT /NORESTART
+            echo [OK] Git uninstall started ^(it may finish in a separate window^).
+        ) else (
+            echo [INFO] git was not found on PATH; nothing to uninstall.
+        )
+    ) else (
+        echo [INFO] Left Git installed. You can remove it later via
+        echo Settings ^> Apps ^> search "Git" ^> Uninstall.
+    )
+    del /f /q ".git_installed_by_bootstrap.txt" >nul 2>nul
+)
+
 echo.
 echo Done.
 pause
