@@ -103,6 +103,12 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
   gap: 8px;
   margin-bottom: 10px;
 }
+.app-version {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 4px;
+}
 .settings-hint {
   margin: 0 0 10px;
   font-size: 0.78rem;

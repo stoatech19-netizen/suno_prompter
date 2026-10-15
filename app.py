@@ -1,4 +1,5 @@
 import os
+import subprocess
 import threading
 import time
 import traceback
@@ -35,6 +36,25 @@ MAX_CONTENT_LENGTH = 150 * 1024 * 1024  # 150MB
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # dev only: always serve fresh static files
+
+
+def _get_app_version():
+    """Short git commit hash + commit date, shown in the settings dialog so
+    the user (and support) can tell which auto-updated revision is running
+    (run.bat pulls on every launch -- there's no separate app version to
+    bump). Falls back to "dev" if this isn't a git checkout or git isn't on
+    PATH, so it never breaks the page."""
+    try:
+        output = subprocess.check_output(
+            ["git", "-C", BASE_DIR, "log", "-1", "--format=%h (%cd)", "--date=format:%Y-%m-%d"],
+            stderr=subprocess.DEVNULL, timeout=3,
+        )
+        return output.decode("utf-8", "replace").strip() or "dev"
+    except Exception:
+        return "dev"
+
+
+APP_VERSION = _get_app_version()
 
 # The desktop shortcut runs this server with its console window hidden (see
 # launch.vbs), so there's no window for the user to close to stop it. Instead
@@ -136,7 +156,7 @@ def _handle_too_large(e):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", app_version=APP_VERSION)
 
 
 @app.route("/api/heartbeat", methods=["POST"])
