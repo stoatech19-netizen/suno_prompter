@@ -851,7 +851,10 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
     with lyrics written in the given language at the given tempo band. The
     keyword can be EITHER a product/topic/occasion to loosely nudge the
     vibe of (e.g. '여름 신상 원피스') OR a direct description of the song's
-    own desired genre/mood (e.g. '트로트풍 홍보송', '발라드 느낌의 축하곡') —
+    own desired genre/mood -- naming a genre (e.g. '트로트풍 홍보송', '발라드
+    느낌의 축하곡') or just describing a mood/atmosphere with no genre named
+    (e.g. '잔잔한 배경음악 같은 느낌'), in which case Gemini infers a fitting
+    genre itself while still keeping vocals and normal song structure --
     see the prompt below for how each is handled. Returns a tuple of
     (list of `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm,
     input_style -- "category" or "literal", so the caller knows whether to
@@ -868,22 +871,36 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
         "This is NOT a jingle that describes or sells that topic directly — "
         "it's a warm, upbeat feel-good mood piece the topic merely nudges the "
         "vibe of (see the lyrics guidance below).\n"
-        "(B) A direct description of the SONG's own desired genre/mood/style — "
-        "e.g. '트로트풍 홍보송' (a trot-style promo song), '발라드 느낌의 축하곡' "
-        "(a ballad-style celebration song), '시티팝 느낌의 홍보 음악' (city-pop "
-        "style promo music). For this style, build the song in THAT genre/mood "
-        "literally — do NOT default to dance-pop/EDM/K-pop just because that's "
-        "this tool's usual style.\n"
-        "Either way, this is a COMPLETE, fully-formed song with normal song "
-        "structure (e.g. intro, verse, chorus, possibly a bridge, outro) and it "
-        "includes VOCALS — it is NOT a seamless instrumental loop. "
+        "(B) A direct description of the SONG's own desired genre/mood/"
+        "atmosphere, which may EITHER name a specific genre — e.g. '트로트풍 "
+        "홍보송' (a trot-style promo song), '발라드 느낌의 축하곡' (a "
+        "ballad-style celebration song), '시티팝 느낌의 홍보 음악' (city-pop "
+        "style promo music) — OR describe only a mood/atmosphere/scene with NO "
+        "genre named at all — e.g. '잔잔한 배경음악 같은 느낌' (a calm, mellow, "
+        "background-music-like feel), '카페에서 틀기 좋은 잔잔한 음악' (mellow "
+        "music that would suit a cafe), '긴장감 넘치는 느낌' (a tense, "
+        "suspenseful feel). Either way, do NOT default to dance-pop/EDM/K-pop "
+        "just because that's this tool's usual style: if a genre is named, "
+        "build the song in THAT genre literally; if only a mood/atmosphere is "
+        "given with no genre, INFER whichever genre and arrangement naturally "
+        "fits that described mood instead (e.g. a calm/mellow/background-music "
+        "feel → a soft acoustic or piano-led ballad, or a gentle acoustic-pop "
+        "vocal arrangement; a tense feel → a dramatic, driving arrangement) and "
+        "build the song in THAT inferred genre. A calm/mellow/ambient mood "
+        "describing the FEEL does NOT mean dropping the vocals or the song "
+        "structure — it only changes which genre/arrangement carries them.\n"
+        "Either way (A or B), this is a COMPLETE, fully-formed song with normal "
+        "song structure (e.g. intro, verse, chorus, possibly a bridge, outro) "
+        "and it includes VOCALS — it is NOT a seamless instrumental loop. "
         f"Generate {count} DISTINCT options, each clearly different in "
         "mood/instrumentation from the others, but ALL options should "
         f"share the same {tempo_hint} tempo feel. If the request is style (A), "
         "or is style (B) but broad/open-ended about genre: " + _CTA_GENRE_NOTE +
-        " If instead the request is style (B) and names a specific genre/mood, "
-        "build ALL options in THAT SAME named genre/mood instead — ignore the "
-        "chart-pop/EDM/K-pop direction above, vary the options through "
+        " If instead the request is style (B) and either names a specific "
+        "genre or clearly implies one through its mood/atmosphere, build ALL "
+        "options in THAT SAME genre instead (pick ONE consistent inferred "
+        "genre if none was named, and keep every option within it) — ignore "
+        "the chart-pop/EDM/K-pop direction above, vary the options through "
         "different instrumentation/vocal_style/arrangement nuance within that "
         "genre, and give production descriptors that convey polish appropriate "
         "to THAT genre's own idea of a professional recording (e.g. warm "
