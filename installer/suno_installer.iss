@@ -43,8 +43,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "바탕화면에 바로가기 만들기"; GroupDescription: "추가 아이콘:"
 
 [Files]
+; Deliberately NOT excluding installer\* here: the installed copy must
+; match the git working tree exactly (same tracked files, nothing more or
+; less), or a future `git pull --ff-only` on this PC can refuse to apply
+; an update that touches a path we omitted at install time.
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: ".venv,uploads\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "{#SourceDir}\uploads\.gitkeep"; DestDir: "{app}\uploads"; Flags: ignoreversion
+; git for Windows marks .git as a Hidden+System folder, which Inno's plain
+; wildcard above silently skips - pull it in explicitly so the installed
+; copy is still a working clone that run.bat's `git pull` can update.
+Source: "{#SourceDir}\.git\*"; DestDir: "{app}\.git"; Attribs: hidden; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\run.bat"; WorkingDir: "{app}"; IconFilename: "{app}\static\app.ico"
@@ -52,7 +60,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\run.bat"; WorkingDir: "{app}"; IconFilename: "{app}\static\app.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/c setup.bat < nul"; WorkingDir: "{app}"; StatusMsg: "Python 환경을 설치하는 중입니다 (몇 분 정도 걸릴 수 있습니다)..."; Flags: waituntilterminated
+Filename: "{cmd}"; Parameters: "/c ""{app}\setup.bat"" < nul"; WorkingDir: "{app}"; StatusMsg: "Python 환경을 설치하는 중입니다 (몇 분 정도 걸릴 수 있습니다)..."; Flags: waituntilterminated
 Filename: "{app}\run.bat"; Description: "지금 바로 실행하기"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent shellexec
 
 [UninstallDelete]
