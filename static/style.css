@@ -135,14 +135,16 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
 
 #settings-panel-keys[hidden], #settings-panel-tags[hidden], #settings-panel-cta-tags[hidden] { display: none; }
 
-/* All three panels share this floor so the dialog doesn't resize when
-   switching tabs (baseline = the Gemini API 키 panel's natural height,
-   the tallest of the three by default). It's a min-height, not a fixed
-   height, so a panel whose own content grows past it (e.g. after
-   clicking "+ 태그 추가"/"+ 키 추가" enough times) still grows on its
-   own without being capped. */
+/* All three panels share this floor so the dialog (a centered <dialog>
+   element) doesn't change height -- and so re-center/shift on screen --
+   when switching tabs. Baseline = the BGM 고정 태그 panel's natural
+   height (5 default tags, the tallest of the three), so the shorter
+   CTA/Gemini panels just get empty space below their content instead of
+   a shorter box. It's a min-height, not a fixed height, so a panel whose
+   own content grows past this floor (e.g. after clicking "+ 태그 추가"/
+   "+ 키 추가" enough times) still grows on its own without being capped. */
 #settings-panel-tags, #settings-panel-cta-tags, #settings-panel-keys {
-  min-height: 230px;
+  min-height: 320px;
 }
 
 .key-list {
