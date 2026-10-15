@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 import traceback
 import uuid
 
@@ -32,6 +34,25 @@ MAX_CONTENT_LENGTH = 150 * 1024 * 1024  # 150MB
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # dev only: always serve fresh static files
+
+# The desktop shortcut runs this server with its console window hidden (see
+# launch.vbs), so there's no window for the user to close to stop it. Instead
+# the page itself pings /api/heartbeat while open; if no ping arrives for a
+# while (tab/browser closed, or the PC put the page to sleep for good), this
+# watcher thread shuts the process down so it doesn't linger invisibly.
+_HEARTBEAT_TIMEOUT_SECONDS = 15
+_last_heartbeat_at = None
+_heartbeat_lock = threading.Lock()
+
+
+def _watch_heartbeat():
+    while True:
+        time.sleep(3)
+        with _heartbeat_lock:
+            last = _last_heartbeat_at
+        if last is not None and time.time() - last > _HEARTBEAT_TIMEOUT_SECONDS:
+            print("[server] No browser heartbeat received - shutting down.", flush=True)
+            os._exit(0)
 
 
 def _variation_result(analysis, fallback_bpm=None, fixed_tags=None):
@@ -110,6 +131,14 @@ def _handle_too_large(e):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/heartbeat", methods=["POST"])
+def heartbeat():
+    global _last_heartbeat_at
+    with _heartbeat_lock:
+        _last_heartbeat_at = time.time()
+    return "", 204
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -254,4 +283,5 @@ def regenerate():
 
 
 if __name__ == "__main__":
+    threading.Thread(target=_watch_heartbeat, daemon=True).start()
     app.run(host="127.0.0.1", port=5001, debug=True)

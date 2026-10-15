@@ -40,7 +40,11 @@ echo Your browser will open automatically in a moment.
 echo Close this window to stop the server.
 echo.
 
-start "" cmd /c "timeout /t 2 >nul && start http://127.0.0.1:5001"
+start /b "" cmd /c "timeout /t 2 >nul && start http://127.0.0.1:5001"
 ".venv\Scripts\python.exe" app.py
 
-pause
+if errorlevel 1 (
+    echo.
+    echo [ERROR] The server stopped unexpectedly ^(exit code %errorlevel%^).
+    pause
+)

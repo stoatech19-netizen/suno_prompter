@@ -55,13 +55,16 @@ Source: "{#SourceDir}\uploads\.gitkeep"; DestDir: "{app}\uploads"; Flags: ignore
 Source: "{#SourceDir}\.git\*"; DestDir: "{app}\.git"; Attribs: hidden; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\run.bat"; WorkingDir: "{app}"; IconFilename: "{app}\static\app.ico"
+; Target launch.vbs, not run.bat directly - a shortcut whose target is a
+; .bat always flashes a console window on launch; launch.vbs runs run.bat
+; with that window fully hidden instead (see launch.vbs for why).
+Name: "{group}\{#MyAppName}"; Filename: "{app}\launch.vbs"; WorkingDir: "{app}"; IconFilename: "{app}\static\app.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\run.bat"; WorkingDir: "{app}"; IconFilename: "{app}\static\app.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\launch.vbs"; WorkingDir: "{app}"; IconFilename: "{app}\static\app.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{cmd}"; Parameters: "/c ""{app}\setup.bat"" < nul"; WorkingDir: "{app}"; StatusMsg: "Python 환경을 설치하는 중입니다 (몇 분 정도 걸릴 수 있습니다)..."; Flags: waituntilterminated
-Filename: "{app}\run.bat"; Description: "지금 바로 실행하기"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent shellexec
+Filename: "{app}\launch.vbs"; Description: "지금 바로 실행하기"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent shellexec
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

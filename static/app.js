@@ -723,3 +723,11 @@ ctaForm.addEventListener("submit", async (e) => {
     refreshBtn.disabled = !tabState[activeTab].variationBatch.length;
   }
 });
+
+// The server has no visible window to close (see launch.vbs), so it relies
+// on this page pinging it to know it's still open. As long as one tab is
+// pinging, the server stays up; once every tab stops (closed, navigated
+// away, PC asleep), the server's watcher thread shuts it down on its own.
+setInterval(() => {
+  fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
+}, 3000);
