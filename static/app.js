@@ -8,6 +8,7 @@ const tabCategory = document.getElementById("tab-category");
 const tabCta = document.getElementById("tab-cta");
 const categoryForm = document.getElementById("category-form");
 const categoryInput = document.getElementById("category-input");
+const categoryTempoSelect = document.getElementById("category-tempo-select");
 const categorySubmitBtn = document.getElementById("category-submit-btn");
 const ctaForm = document.getElementById("cta-form");
 const ctaKeywordInput = document.getElementById("cta-keyword-input");
@@ -360,7 +361,7 @@ const tabState = {
   // has Gemini decide whether the typed keyword was a product/category or a
   // literal music description; "literal" means the fixed style tags get
   // skipped (see regenerate() below, which resends it on every "다시 생성").
-  category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, inputStyle: null },
+  category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, inputStyle: null, tempo: "medium" },
   cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko", tempo: "medium", inputStyle: null },
 };
 let activeTab = "file";
@@ -547,6 +548,7 @@ async function regenerate() {
           body: JSON.stringify({
             analysis: current.analysis,
             bpm: current.bpm,
+            tempo: state.tempo,
             fixed_tags: getFixedTagsArray(),
             api_keys: getApiKeysForRequest(),
             input_style: state.inputStyle,
@@ -642,6 +644,7 @@ form.addEventListener("submit", async (e) => {
 categoryForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const category = categoryInput.value.trim();
+  const tempo = categoryTempoSelect.value;
   if (!category || requestInFlight) return;
 
   requestInFlight = true;
@@ -654,7 +657,7 @@ categoryForm.addEventListener("submit", async (e) => {
     const res = await fetch("/api/analyze-category", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, fixed_tags: getFixedTagsArray(), api_keys: getApiKeysForRequest() }),
+      body: JSON.stringify({ category, tempo, fixed_tags: getFixedTagsArray(), api_keys: getApiKeysForRequest() }),
     });
     const data = await res.json();
 
@@ -668,6 +671,7 @@ categoryForm.addEventListener("submit", async (e) => {
     tabState.category.variationBatch = data.variations || [];
     tabState.category.variationIndex = 0;
     tabState.category.inputStyle = data.input_style ?? null;
+    tabState.category.tempo = tempo;
     if (activeTab === "category") {
       showTabResult("category");
     }

@@ -8,6 +8,7 @@ from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from analyzer import (
+    CATEGORY_TEMPO_HINTS,
     CTA_LANGUAGE_NAMES,
     CTA_TEMPO_HINTS,
     VARIATION_BATCH_SIZE,
@@ -85,6 +86,11 @@ def _cta_language_from(value):
 def _cta_tempo_from(value):
     tempo = (value or "medium").strip().lower()
     return tempo if tempo in CTA_TEMPO_HINTS else "medium"
+
+
+def _category_tempo_from(value):
+    tempo = (value or "medium").strip().lower()
+    return tempo if tempo in CATEGORY_TEMPO_HINTS else "medium"
 
 
 def _fixed_tags_from_list(value):
@@ -201,6 +207,7 @@ def analyze():
 def analyze_category_route():
     body = request.get_json(silent=True) or {}
     category = (body.get("category") or "").strip()
+    tempo = _category_tempo_from(body.get("tempo"))
     fixed_tags = _fixed_tags_from_list(body.get("fixed_tags"))
     api_keys = _api_keys_from_list(body.get("api_keys"))
 
@@ -210,7 +217,7 @@ def analyze_category_route():
         return _missing_api_keys_response()
 
     try:
-        variations, input_style = analyze_category(category, api_keys)
+        variations, input_style = analyze_category(category, api_keys, tempo=tempo)
     except Exception as e:
         return _gemini_error_response(e)
 
@@ -295,6 +302,11 @@ def regenerate():
     # original /api/analyze-category response, absent (None) for the file
     # upload tab, which always applies the fixed tags as before.
     input_style = body.get("input_style")
+    # Only the BGM keyword tab sends this (it has a tempo selector); the
+    # file upload tab sends nothing, so it keeps the old per-variation
+    # diverse-bpm behavior (see regenerate_variations).
+    raw_tempo = body.get("tempo")
+    tempo = _category_tempo_from(raw_tempo) if raw_tempo else None
 
     if not isinstance(previous_analysis, dict):
         return jsonify({"error": "이전 분석 결과가 없습니다. 먼저 곡을 분석해주세요."}), 400
@@ -302,7 +314,7 @@ def regenerate():
         return _missing_api_keys_response()
 
     try:
-        variations = regenerate_variations(previous_analysis, reference_bpm, api_keys)
+        variations = regenerate_variations(previous_analysis, reference_bpm, api_keys, tempo=tempo)
     except Exception as e:
         return _gemini_error_response(e)
 

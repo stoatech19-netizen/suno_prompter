@@ -386,16 +386,29 @@ def analyze_with_gemini(file_path, local_features, api_keys):
     return _response_json(response)
 
 
-def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
+# Lets a user pin the BGM keyword tab's 4 options to one tempo feel instead
+# of each getting its own plausible bpm -- same idea as CTA_TEMPO_HINTS
+# below, but worded for instrumental background music rather than a vocal
+# pop song.
+CATEGORY_TEMPO_HINTS = {
+    "fast": "FAST (~120-150 bpm) — energetic, driving background music",
+    "medium": "MEDIUM (~95-118 bpm) — a comfortable, steady-moving background energy",
+    "slow": "SLOW (~60-90 bpm) — a relaxed, laid-back background feel",
+}
+
+
+def analyze_category(category, api_keys, tempo="medium", count=VARIATION_BATCH_SIZE):
     """Text-only call (no audio/reference track at all) that asks Gemini to
     suggest background-music styles fitting a free-text description, which
     can be EITHER a home-shopping product/category keyword (e.g. '주방가전',
     '50대 여성 패션') OR a direct natural-language description of the music
     itself (e.g. '카페에서 틀기 좋은 잔잔한 음악', '국악을 재즈 오케스트라랑
-    퓨전시킨 음악') — see the prompt below for how each is handled. Returns a
-    tuple of (list of `count` variation dicts in the same shape as
-    regenerate_variations, input_style -- "category" or "literal", so the
-    caller knows whether to apply the user's fixed style tags)."""
+    퓨전시킨 음악') — see the prompt below for how each is handled. All
+    options share the tempo band named by `tempo` (a CATEGORY_TEMPO_HINTS
+    key). Returns a tuple of (list of `count` variation dicts in the same
+    shape as regenerate_variations, input_style -- "category" or "literal",
+    so the caller knows whether to apply the user's fixed style tags)."""
+    tempo_hint = CATEGORY_TEMPO_HINTS.get(tempo, CATEGORY_TEMPO_HINTS["medium"])
     prompt = (
         "You are creating INSTRUMENTAL background music to fit a free-text request. "
         f"The request is: '{category}'. "
@@ -423,9 +436,10 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
         "sales energy just because this tool is normally used for shopping BGM. Treat any genre, "
         "fusion, instrument, or scene the text names as a firm creative direction to honor, not a "
         "hint to drift away from.\n"
-        f"Generate {count} DISTINCT variations of the result. If the request is style (A), or is "
+        f"Generate {count} DISTINCT variations of the result, but ALL of them should share the "
+        f"same {tempo_hint} tempo feel. If the request is style (A), or is "
         "style (B) but broad/open-ended about genre, make the options clearly distinct from each "
-        "other (different genre, mood/energy, tempo, and instrumentation) — avoid defaulting to "
+        "other (different genre, mood/energy, and instrumentation) — avoid defaulting to "
         "the single most obvious/generic choice, and avoid letting every option converge on the "
         "same funk/disco/synth-pop instrument palette (slap bass, FM electric piano, brass stabs, "
         "drum machine); pick specific, characterful sub-genres and let each option's own distinct "
@@ -434,9 +448,10 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
         "ambient, electronic, world, etc., whatever best fits that option's mood. If instead the "
         "request is style (B) and already names a specific genre, fusion, or mood (e.g. "
         "'국악-재즈 퓨전', '잔잔한 카페 음악'), keep ALL options within that SAME named genre/mood/ "
-        "fusion — vary them through different arrangement, instrumentation choice, or tempo/energy "
+        "fusion — vary them through different arrangement, instrumentation choice, or energy "
         "nuance within that direction instead, never by swapping to an unrelated genre. All "
-        "must be instrumental only (no vocals). Give each option its own plausible bpm, a vivid "
+        f"must be instrumental only (no vocals). Give each option its own bpm matching that "
+        f"{tempo} tempo band, a vivid "
         "mood/energy list specific to that option (not generic filler like 'upbeat' alone), "
         "and a list of 4 to 6 specific instruments/textures chosen to genuinely fit that "
         "option's own mood/energy and genre — cover a rhythm layer, a melodic/harmonic layer, "
@@ -494,19 +509,36 @@ def analyze_category(category, api_keys, count=VARIATION_BATCH_SIZE):
     return data.get("variations") or [], data.get("input_style")
 
 
-def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARIATION_BATCH_SIZE):
+def regenerate_variations(previous_analysis, reference_bpm, api_keys, tempo=None, count=VARIATION_BATCH_SIZE):
     """Text-only follow-up call (no audio re-sent) that asks Gemini for a
     batch of new variations that preserve the previous analysis's core
-    mood/energy while varying genre, tempo, and instrument choices. Used
-    both to seed the initial browsable batch (alongside the audio-grounded
-    base analysis) and for the 'regenerate' button. Returns a list of
-    `count` variation dicts."""
+    mood/energy while varying genre and instrument choices (and tempo too,
+    unless `tempo` pins all variations to one CATEGORY_TEMPO_HINTS band --
+    used for the BGM keyword tab's regenerate, which has an explicit tempo
+    selector; left None for the file-upload tab, which doesn't). Used both
+    to seed the initial browsable batch (alongside the audio-grounded base
+    analysis) and for the 'regenerate' button. Returns a list of `count`
+    variation dicts."""
     if count <= 0:
         return []
 
-    bpm_note = f" The previous variation's tempo was about {reference_bpm} BPM." if reference_bpm else ""
     prev_mood = previous_analysis.get("mood") or []
     mood_note = f" Its core mood/energy was: {', '.join(prev_mood)}." if prev_mood else ""
+
+    if tempo:
+        tempo_hint = CATEGORY_TEMPO_HINTS.get(tempo, CATEGORY_TEMPO_HINTS["medium"])
+        tempo_clause = (
+            f"ALL variations must share the same {tempo_hint} tempo feel (each its own bpm "
+            f"within that {tempo} band, not a different tempo per variation). Create variety "
+            "instead through: "
+        )
+    else:
+        bpm_note = f" The previous variation's tempo was about {reference_bpm} BPM." if reference_bpm else ""
+        tempo_clause = (
+            "Create variety instead through: a different "
+            "plausible tempo per variation (a new bpm value, distinct from before "
+            "but still natural for this genre)," + bpm_note + " "
+        )
 
     prompt = (
         "Here is a previous music style analysis, as JSON, for an instrumental "
@@ -517,10 +549,8 @@ def regenerate_variations(previous_analysis, reference_bpm, api_keys, count=VARI
         "previous mood was bright and upbeat, every variation must still clearly "
         "read as bright and upbeat — do NOT drift into a different emotional "
         "register (e.g. do not turn it melancholic, moody, or aggressive) just "
-        "to create variety. Create variety instead through: a different "
-        "plausible tempo per variation (a new bpm value, distinct from before "
-        "but still natural for this genre)," + bpm_note +
-        " mood/energy descriptors that stay true to that same core character but with "
+        "to create variety. " + tempo_clause +
+        "mood/energy descriptors that stay true to that same core character but with "
         "fresh, specific phrasing (not generic filler like 'upbeat' alone), and a fresh "
         "list of 4 to 6 specific instruments/textures per variation that express that SAME "
         "mood through a different genre/instrumentation lens — cover a rhythm layer, a "
