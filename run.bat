@@ -35,6 +35,19 @@ if exist ".git" (
     echo.
 )
 
+rem A previous instance can be left listening on 5001 if it didn't shut
+rem down cleanly (crash, older version without the auto-stop heartbeat,
+rem etc). If we don't clear it, the new process below fails to bind to
+rem the port and exits immediately (invisibly, since this window is
+rem hidden by launch.vbs) -- the browser then just reopens the OLD
+rem process, and it looks like the update never applied. Force-killing
+rem whatever's on 5001 first makes every launch start from a clean,
+rem up-to-date process.
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr "127.0.0.1:5001" ^| findstr "LISTENING"') do (
+    echo [INFO] Stopping a previous server instance ^(PID %%P^)...
+    taskkill /F /PID %%P >nul 2>nul
+)
+
 echo Starting Suno Prompt Generator...
 echo Your browser will open automatically in a moment.
 echo Close this window to stop the server.
