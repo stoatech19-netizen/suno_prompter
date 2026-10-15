@@ -11,8 +11,7 @@ echo ============================================
 echo.
 echo This will download the app from GitHub into a
 echo "%INSTALL_DIR%" folder next to this script, then run its setup.
-echo An internet connection is required, and you may be asked to sign
-echo in to GitHub once (this is a private repository).
+echo An internet connection is required.
 echo.
 
 if exist "%INSTALL_DIR%\.git" (
@@ -62,15 +61,12 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [INFO] Cloning the app from GitHub...
-echo A browser window may open asking you to sign in to GitHub - this is
-echo normal for a private repository and only needs to be done once per PC.
 echo.
 git clone "%REPO_URL%" "%INSTALL_DIR%"
 if not exist "%INSTALL_DIR%\setup.bat" (
     echo.
     echo [ERROR] Clone failed, or finished without the expected files.
-    echo Check the messages above ^(network issue, or the GitHub sign-in was
-    echo cancelled/denied^) and try again.
+    echo Check the network connection above and try again.
     pause
     exit /b 1
 )
