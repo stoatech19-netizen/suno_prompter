@@ -8,30 +8,52 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-if exist ".git" (
-    echo Checking for updates...
-    git fetch --quiet origin main >nul 2>nul
-    if !errorlevel! equ 0 (
-        for /f "delims=" %%H in ('git rev-parse HEAD') do set "LOCAL_HEAD=%%H"
-        for /f "delims=" %%H in ('git rev-parse origin/main') do set "REMOTE_HEAD=%%H"
-        if not "!LOCAL_HEAD!"=="!REMOTE_HEAD!" (
-            echo [INFO] Update found. Applying...
-            git diff --quiet HEAD origin/main -- requirements.txt
-            set "REQS_CHANGED=!errorlevel!"
-            git pull --ff-only origin main
-            if !errorlevel! equ 0 (
-                if not "!REQS_CHANGED!"=="0" (
-                    echo [INFO] Dependencies changed, reinstalling...
-                    ".venv\Scripts\python.exe" -m pip install --no-cache-dir -r requirements.txt
+rem Just finding "git" on PATH isn't enough to safely run it: if it was
+rem installed for the wrong CPU architecture (or the binary is otherwise
+rem corrupt), Windows pops a blocking "wrong system type" dialog the
+rem instant we try to launch it -- and since this window is hidden by
+rem launch.vbs, that dialog looks exactly like the app silently failing
+rem to start. Checked without ever running git.exe: read its PE header's
+rem machine-type field directly and compare it to the OS's real
+rem architecture (not the process's, in case this is 32-bit cmd under
+rem WOW64/emulation).
+set "GIT_OK=0"
+for /f "delims=" %%G in ('powershell -NoProfile -Command "try { $g = (Get-Command git -ErrorAction Stop).Source; $b = [IO.File]::ReadAllBytes($g); $off = [BitConverter]::ToInt32($b, 0x3C); $mach = [BitConverter]::ToUInt16($b, $off + 4); $want = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture) { 'X64' {0x8664} 'X86' {0x014c} 'Arm64' {0xAA64} 'Arm' {0x01c4} default {-1} }; if ($mach -eq $want) {'OK'} else {'MISMATCH'} } catch {'MISSING'}" 2^>nul') do set "GIT_OK=%%G"
+
+if "!GIT_OK!"=="OK" (
+    if exist ".git" (
+        echo Checking for updates...
+        git fetch --quiet origin main >nul 2>nul
+        if !errorlevel! equ 0 (
+            for /f "delims=" %%H in ('git rev-parse HEAD') do set "LOCAL_HEAD=%%H"
+            for /f "delims=" %%H in ('git rev-parse origin/main') do set "REMOTE_HEAD=%%H"
+            if not "!LOCAL_HEAD!"=="!REMOTE_HEAD!" (
+                echo [INFO] Update found. Applying...
+                git diff --quiet HEAD origin/main -- requirements.txt
+                set "REQS_CHANGED=!errorlevel!"
+                git pull --ff-only origin main
+                if !errorlevel! equ 0 (
+                    if not "!REQS_CHANGED!"=="0" (
+                        echo [INFO] Dependencies changed, reinstalling...
+                        ".venv\Scripts\python.exe" -m pip install --no-cache-dir -r requirements.txt
+                    )
+                    echo [OK] Updated to the latest version.
+                ) else (
+                    echo [WARN] Could not apply the update automatically ^(local changes in this folder?^). Continuing with the current version.
                 )
-                echo [OK] Updated to the latest version.
-            ) else (
-                echo [WARN] Could not apply the update automatically ^(local changes in this folder?^). Continuing with the current version.
             )
+        ) else (
+            echo [WARN] Could not check for updates ^(offline?^). Continuing with the current version.
         )
-    ) else (
-        echo [WARN] Could not check for updates ^(offline?^). Continuing with the current version.
+        echo.
     )
+) else (
+    if "!GIT_OK!"=="MISMATCH" (
+        echo [WARN] The 'git' on this PC is built for a different CPU architecture and can't run here - skipping the update check.
+    ) else (
+        echo [WARN] 'git' was not found - skipping the update check.
+    )
+    echo Continuing with the current version.
     echo.
 )
 
