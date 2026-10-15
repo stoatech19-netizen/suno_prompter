@@ -7,11 +7,13 @@ import librosa
 from google import genai
 from google.genai import types
 
-# Tried in order. If the primary model has no capacity (503/overload) or
-# doesn't answer across every API key, we fall back to the next, older/more
-# established model rather than failing the request outright -- a newer
-# model is more likely to hit demand-driven 503s than a GA one.
-GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+# Tried in order. If the current model has no capacity (503/overload) or
+# has been retired (404 "no longer available" -- Gemini model IDs get
+# sunset on a rolling basis), we fall back to the next one rather than
+# failing the request outright. Keep this to live Gemini 3.x Flash point
+# releases -- older generations (2.x and earlier) get shut down for new
+# API traffic well before the 3.x line, so they make poor fallbacks.
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash"]
 
 # Tags that always get appended to the generated Suno Style prompt (e.g.
 # intro feel, loop behavior) unless the caller (the browser, which persists
@@ -54,6 +56,12 @@ _RETRYABLE_MARKERS = (
     "RESOURCE_EXHAUSTED", "PERMISSION_DENIED", "UNAVAILABLE", "INTERNAL",
 )
 
+# A 404 here means the *model id* has been retired, not that this key or
+# request is bad -- every key will get the same 404, so there's no point
+# burning through key-rotation attempts for it. Move straight to the next
+# model in GEMINI_MODELS instead.
+_MODEL_UNAVAILABLE_MARKERS = ("NOT_FOUND", "NO LONGER AVAILABLE", "NOT_SUPPORTED")
+
 
 def _is_retryable_key_error(e):
     message = str(e)
@@ -61,6 +69,13 @@ def _is_retryable_key_error(e):
         return True
     upper = message.upper()
     return any(marker in upper for marker in _RETRYABLE_MARKERS)
+
+
+def _is_model_unavailable_error(e):
+    message = str(e)
+    if message[:3] == "404":
+        return True
+    return any(marker in message.upper() for marker in _MODEL_UNAVAILABLE_MARKERS)
 
 
 def _generate_with_rotation(contents, config, api_keys):
@@ -99,6 +114,8 @@ def _generate_with_rotation(contents, config, api_keys):
                 return response
             except Exception as e:
                 last_err = e
+                if _is_model_unavailable_error(e):
+                    break  # every key will 404 the same way -- try the next model
                 if _is_retryable_key_error(e):
                     if i < attempts - 1:
                         time.sleep(1.5)
