@@ -7,7 +7,11 @@ import librosa
 from google import genai
 from google.genai import types
 
-GEMINI_MODEL = "gemini-3.6-flash"
+# Tried in order. If the primary model has no capacity (503/overload) or
+# doesn't answer across every API key, we fall back to the next, older/more
+# established model rather than failing the request outright -- a newer
+# model is more likely to hit demand-driven 503s than a GA one.
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
 
 # Tags that always get appended to the generated Suno Style prompt (e.g.
 # intro feel, loop behavior) unless the caller (the browser, which persists
@@ -63,7 +67,13 @@ def _generate_with_rotation(contents, config, api_keys):
     """Call Gemini, rotating through the given API keys whenever the
     current one fails with a key/project-level error (quota, permission
     denial, transient server error). Starts from the last-known-good key
-    index so subsequent calls don't re-try broken keys from scratch."""
+    index so subsequent calls don't re-try broken keys from scratch.
+
+    If every key strikes out on the current model with a retryable error,
+    falls back to the next model in GEMINI_MODELS (same key rotation)
+    before giving up -- this is what actually recovers from a model-wide
+    503 "high demand" spike, since rotating keys alone doesn't help when
+    the model itself (not any one key) is overloaded."""
     keys = [k.strip() for k in (api_keys or []) if k and k.strip()]
     if not keys:
         raise RuntimeError(
@@ -72,27 +82,28 @@ def _generate_with_rotation(contents, config, api_keys):
 
     global _key_index
     last_err = None
-    # Even with a single key, retry at least once on a retryable error:
-    # Gemini's 503 "high demand" spikes are usually gone within a couple
-    # seconds, and without this a lone key would fail on the first blip
-    # with nothing left to rotate to.
-    attempts = max(len(keys), 2)
-    for i in range(attempts):
-        idx = (_key_index + i) % len(keys)
-        try:
-            client = genai.Client(api_key=keys[idx])
-            response = client.models.generate_content(
-                model=GEMINI_MODEL, contents=contents, config=config
-            )
-            _key_index = idx
-            return response
-        except Exception as e:
-            last_err = e
-            if _is_retryable_key_error(e):
-                if i < attempts - 1:
-                    time.sleep(1.5)
-                continue
-            raise
+    for model in GEMINI_MODELS:
+        # Even with a single key, retry at least once on a retryable error:
+        # Gemini's 503 "high demand" spikes are usually gone within a couple
+        # seconds, and without this a lone key would fail on the first blip
+        # with nothing left to rotate to.
+        attempts = max(len(keys), 2)
+        for i in range(attempts):
+            idx = (_key_index + i) % len(keys)
+            try:
+                client = genai.Client(api_key=keys[idx])
+                response = client.models.generate_content(
+                    model=model, contents=contents, config=config
+                )
+                _key_index = idx
+                return response
+            except Exception as e:
+                last_err = e
+                if _is_retryable_key_error(e):
+                    if i < attempts - 1:
+                        time.sleep(1.5)
+                    continue
+                raise
     raise last_err
 
 
