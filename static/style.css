@@ -351,11 +351,31 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
 }
 .drag-handle {
   flex-shrink: 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1;
+  position: relative;
+  width: 10px;
+  height: 14px;
+  margin: 0 2px;
   cursor: grab;
   user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow:
+    0 5px 0 var(--muted),
+    0 10px 0 var(--muted),
+    6px 0 0 var(--muted),
+    6px 5px 0 var(--muted),
+    6px 10px 0 var(--muted);
 }
 .tag-row input {
   flex: 1;

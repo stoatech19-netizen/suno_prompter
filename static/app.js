@@ -536,8 +536,13 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
   // string — see build_suno_prompt), so dragging by the handle lets the
   // user reorder without retyping. Dropping on a row always inserts the
   // dragged tag immediately before it, regardless of drag direction.
-  let dragSourceIndex = null;
-
+  //
+  // Deliberately NOT using the native HTML5 drag-and-drop API (draggable
+  // + dragstart/dragover/drop): some userscripts/extensions that "unblock"
+  // page drag restrictions do so by calling stopPropagation() on dragstart
+  // at the document level in the capture phase, which silently kills our
+  // own dragstart listener too (the native drag ghost still shows, but our
+  // reorder logic never runs). Plain mouse events sidestep that entirely.
   function reorder(fromIndex, toIndex) {
     if (fromIndex === toIndex) return;
     const [moved] = tags.splice(fromIndex, 1);
@@ -547,18 +552,57 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
     render();
   }
 
+  function rowIndexAtY(y) {
+    const rows = Array.from(listEl.querySelectorAll(".tag-row"));
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i].getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) return i;
+    }
+    if (rows.length && y < rows[0].getBoundingClientRect().top) return 0;
+    if (rows.length) return rows.length - 1;
+    return -1;
+  }
+
+  function startDrag(sourceIndex, row) {
+    row.classList.add("dragging");
+
+    function onMouseMove(e) {
+      listEl.querySelectorAll(".tag-row").forEach((r) => r.classList.remove("drag-over"));
+      const overIndex = rowIndexAtY(e.clientY);
+      if (overIndex !== -1 && overIndex !== sourceIndex) {
+        const rows = listEl.querySelectorAll(".tag-row");
+        rows[overIndex].classList.add("drag-over");
+      }
+    }
+
+    function onMouseUp(e) {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      const targetIndex = rowIndexAtY(e.clientY);
+      listEl.querySelectorAll(".tag-row").forEach((r) => r.classList.remove("dragging", "drag-over"));
+      if (targetIndex !== -1 && targetIndex !== sourceIndex) {
+        reorder(sourceIndex, targetIndex);
+      }
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
   function render() {
     listEl.innerHTML = "";
     tags.forEach((value, index) => {
       const row = document.createElement("div");
       row.className = "tag-row";
-      row.draggable = true;
 
       const handle = document.createElement("span");
       handle.className = "drag-handle";
-      handle.textContent = "⠿";
       handle.setAttribute("aria-hidden", "true");
       handle.title = "드래그하여 순서 변경";
+      handle.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        startDrag(index, row);
+      });
       row.appendChild(handle);
 
       const input = document.createElement("input");
@@ -581,34 +625,6 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
       removeBtn.title = "삭제";
       removeBtn.addEventListener("click", () => remove(index));
       row.appendChild(removeBtn);
-
-      row.addEventListener("dragstart", (e) => {
-        dragSourceIndex = index;
-        row.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", String(index));
-      });
-      row.addEventListener("dragend", () => {
-        dragSourceIndex = null;
-        listEl.querySelectorAll(".tag-row").forEach((r) => {
-          r.classList.remove("dragging", "drag-over");
-        });
-      });
-      row.addEventListener("dragover", (e) => {
-        if (dragSourceIndex === null || dragSourceIndex === index) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        row.classList.add("drag-over");
-      });
-      row.addEventListener("dragleave", () => {
-        row.classList.remove("drag-over");
-      });
-      row.addEventListener("drop", (e) => {
-        e.preventDefault();
-        row.classList.remove("drag-over");
-        if (dragSourceIndex === null || dragSourceIndex === index) return;
-        reorder(dragSourceIndex, index);
-      });
 
       listEl.appendChild(row);
     });
