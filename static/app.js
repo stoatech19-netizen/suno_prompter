@@ -552,35 +552,41 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
     render();
   }
 
-  function rowIndexAtY(y) {
+  function startDrag(sourceIndex, row, startEvent) {
+    const startY = startEvent.clientY;
+    // Snapshot every row's position once, before the dragged row gets a
+    // CSS transform applied — getBoundingClientRect() reflects live
+    // transforms, so re-measuring mid-drag would make the floating row's
+    // own rect chase the cursor and corrupt the hit-test.
     const rows = Array.from(listEl.querySelectorAll(".tag-row"));
-    for (let i = 0; i < rows.length; i++) {
-      const rect = rows[i].getBoundingClientRect();
-      if (y >= rect.top && y <= rect.bottom) return i;
-    }
-    if (rows.length && y < rows[0].getBoundingClientRect().top) return 0;
-    if (rows.length) return rows.length - 1;
-    return -1;
-  }
+    const rects = rows.map((r) => r.getBoundingClientRect());
 
-  function startDrag(sourceIndex, row) {
+    // Midpoint-based hit test (not rect.top/bottom containment) so every
+    // y value maps to a row with no dead zone in the gaps between them —
+    // releasing the mouse in a gap used to silently drop the reorder.
+    function indexAtY(y) {
+      for (let i = 0; i < rects.length; i++) {
+        if (y < rects[i].top + rects[i].height / 2) return i;
+      }
+      return rects.length - 1;
+    }
+
     row.classList.add("dragging");
 
     function onMouseMove(e) {
-      listEl.querySelectorAll(".tag-row").forEach((r) => r.classList.remove("drag-over"));
-      const overIndex = rowIndexAtY(e.clientY);
-      if (overIndex !== -1 && overIndex !== sourceIndex) {
-        const rows = listEl.querySelectorAll(".tag-row");
-        rows[overIndex].classList.add("drag-over");
-      }
+      row.style.transform = `translateY(${e.clientY - startY}px)`;
+      rows.forEach((r) => r.classList.remove("drag-over"));
+      const overIndex = indexAtY(e.clientY);
+      if (overIndex !== sourceIndex) rows[overIndex].classList.add("drag-over");
     }
 
     function onMouseUp(e) {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
-      const targetIndex = rowIndexAtY(e.clientY);
-      listEl.querySelectorAll(".tag-row").forEach((r) => r.classList.remove("dragging", "drag-over"));
-      if (targetIndex !== -1 && targetIndex !== sourceIndex) {
+      const targetIndex = indexAtY(e.clientY);
+      row.style.transform = "";
+      rows.forEach((r) => r.classList.remove("dragging", "drag-over"));
+      if (targetIndex !== sourceIndex) {
         reorder(sourceIndex, targetIndex);
       }
     }
@@ -601,7 +607,7 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
       handle.title = "드래그하여 순서 변경";
       handle.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        startDrag(index, row);
+        startDrag(index, row, e);
       });
       row.appendChild(handle);
 

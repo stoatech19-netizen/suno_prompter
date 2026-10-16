@@ -340,10 +340,14 @@ h2 { font-size: 0.9rem; font-weight: 600; margin: 0; }
   border-radius: 8px;
   background: var(--panel);
   padding: 7px 10px;
-  transition: border-color 0.1s, opacity 0.1s;
+  transition: border-color 0.1s, box-shadow 0.1s;
 }
 .tag-row.dragging {
-  opacity: 0.4;
+  position: relative;
+  z-index: 5;
+  background: var(--bg);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  transition: box-shadow 0.1s;
 }
 .tag-row.drag-over {
   border-color: var(--accent);
