@@ -39,9 +39,12 @@ const settingsDialog = document.getElementById("settings-dialog");
 const settingsTabKeys = document.getElementById("settings-tab-keys");
 const settingsTabTags = document.getElementById("settings-tab-tags");
 const settingsTabCtaTags = document.getElementById("settings-tab-cta-tags");
+const settingsTabTheme = document.getElementById("settings-tab-theme");
 const settingsPanelKeys = document.getElementById("settings-panel-keys");
 const settingsPanelTags = document.getElementById("settings-panel-tags");
 const settingsPanelCtaTags = document.getElementById("settings-panel-cta-tags");
+const settingsPanelTheme = document.getElementById("settings-panel-theme");
+const themeOptions = document.querySelectorAll(".theme-option");
 const apiKeysList = document.getElementById("api-keys-list");
 const addApiKeyBtn = document.getElementById("add-api-key-btn");
 
@@ -56,13 +59,64 @@ function setSettingsTab(tab) {
   settingsTabTags.classList.toggle("active", tab === "tags");
   settingsTabCtaTags.classList.toggle("active", tab === "cta-tags");
   settingsTabKeys.classList.toggle("active", tab === "keys");
+  settingsTabTheme.classList.toggle("active", tab === "theme");
   settingsPanelTags.hidden = tab !== "tags";
   settingsPanelCtaTags.hidden = tab !== "cta-tags";
   settingsPanelKeys.hidden = tab !== "keys";
+  settingsPanelTheme.hidden = tab !== "theme";
 }
 settingsTabTags.addEventListener("click", () => setSettingsTab("tags"));
 settingsTabCtaTags.addEventListener("click", () => setSettingsTab("cta-tags"));
 settingsTabKeys.addEventListener("click", () => setSettingsTab("keys"));
+settingsTabTheme.addEventListener("click", () => setSettingsTab("theme"));
+
+// "system" (the default) stores nothing and removes data-theme entirely, so
+// style.css's @media (prefers-color-scheme) decides -- see the inline
+// script in index.html's <head>, which applies a saved light/dark choice
+// before first paint to avoid a flash of the wrong theme.
+const THEME_STORAGE_KEY = "sunoTheme";
+
+function loadTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    // localStorage unavailable -- fall through to "system".
+  }
+  return "system";
+}
+
+function applyTheme(theme) {
+  if (theme === "light" || theme === "dark") {
+    document.documentElement.setAttribute("data-theme", theme);
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  themeOptions.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.themeValue === theme);
+  });
+}
+
+function saveTheme(theme) {
+  try {
+    if (theme === "system") {
+      localStorage.removeItem(THEME_STORAGE_KEY);
+    } else {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }
+  } catch {
+    // Ignore -- worst case the choice just doesn't persist across reloads.
+  }
+}
+
+applyTheme(loadTheme());
+themeOptions.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const theme = btn.dataset.themeValue;
+    applyTheme(theme);
+    saveTheme(theme);
+  });
+});
 
 // Gemini API keys live only in this browser's localStorage, exactly like
 // the fixed style tags above -- no install-time prompt and no .env file

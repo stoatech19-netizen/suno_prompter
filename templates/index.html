@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suno Prompt Generator</title>
+<script>
+// Applied before the page paints so there's no flash of the wrong theme.
+// Absent/invalid storage (including "system") leaves no data-theme
+// attribute at all, so @media (prefers-color-scheme) in style.css decides.
+(function () {
+  try {
+    var saved = localStorage.getItem("sunoTheme");
+    if (saved === "light" || saved === "dark") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+  } catch (e) {}
+})();
+</script>
 <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,6 +40,7 @@
       <button type="button" id="settings-tab-tags" class="mode-tab active">BGM 고정 태그</button>
       <button type="button" id="settings-tab-cta-tags" class="mode-tab">CTA 고정 태그</button>
       <button type="button" id="settings-tab-keys" class="mode-tab">Gemini API 키</button>
+      <button type="button" id="settings-tab-theme" class="mode-tab">테마</button>
     </div>
 
     <section id="settings-panel-tags">
@@ -48,6 +62,15 @@
       <p class="settings-hint api-keys-footer">
         <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Gemini API 키 무료로 발급받기 ↗</a>
       </p>
+    </section>
+
+    <section id="settings-panel-theme" hidden>
+      <p class="settings-hint">화면 테마를 선택하세요. "시스템 설정"은 이 PC(윈도우)의 라이트/다크 모드 설정을 자동으로 따라갑니다.</p>
+      <div class="theme-options" id="theme-options">
+        <button type="button" class="theme-option" data-theme-value="system">시스템 설정</button>
+        <button type="button" class="theme-option" data-theme-value="light">라이트</button>
+        <button type="button" class="theme-option" data-theme-value="dark">다크</button>
+      </div>
     </section>
   </dialog>
 
