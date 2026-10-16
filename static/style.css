@@ -538,11 +538,20 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   align-items: center;
   gap: 10px;
 }
-#refresh-btn {
-  justify-self: end;
-}
+/* Explicit grid-column assignment: when variation-nav is display:none
+   (<=1 variation, e.g. a loaded saved entry), it drops out of grid
+   auto-placement entirely, which would otherwise shift refresh-btn into
+   the middle (auto) column instead of the right (1fr) one. */
 #save-prompt-btn {
+  grid-column: 1;
   justify-self: start;
+}
+#variation-nav {
+  grid-column: 2;
+}
+#refresh-btn {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .save-btn {
