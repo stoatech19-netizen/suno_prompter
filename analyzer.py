@@ -686,12 +686,19 @@ def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None)
     """Assemble a comma-separated Suno 'Style of Music' string from the
     structured analysis, following Suno's current style-field guidance:
     front-load the most important tags (genre, then "instrumental", then
-    era, then mood, then instrumentation, then production quality), keep
-    the total tag count in the ~8-15 sweet spot (more than that and Suno
-    starts dropping tags from the middle), and stay within the field's
-    ~1000-character cap. Always instrumental — vocal style is intentionally
-    left out of the prompt itself, and the "instrumental" tag is kept near
-    the front since Suno weighs earlier tags more heavily.
+    the fixed loop/energy-floor tags, then era, then mood, then
+    instrumentation, then production quality), keep the total tag count in
+    the ~8-15 sweet spot (more than that and Suno starts dropping tags from
+    the middle), and stay within the field's ~1000-character cap. Always
+    instrumental — vocal style is intentionally left out of the prompt
+    itself, and "instrumental" is kept near the front since Suno weighs
+    earlier tags more heavily. The fixed tags (by default, a no-build/no-sag
+    constant-energy mandate -- see DEFAULT_FIXED_STYLE_TAGS) are placed
+    right after that for the same reason: for a genre like house/EDM, whose
+    own training data is dominated by build-into-drop structures, that
+    instruction needs real weight to compete with the genre's own pull, and
+    tags buried near the end of a long list carry much less of it even when
+    they survive the trim below.
     If the tag count still runs over budget, production quality is
     trimmed first (least essential), then mood, while instruments are kept
     as long as possible — a rich, varied instrument list is what keeps the
@@ -710,6 +717,7 @@ def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None)
         if genre_bits:
             tags.append(" ".join(genre_bits))
         tags.append("instrumental")
+        tags.extend(fixed_tags)
         if era:
             tags.append(era)
         tags.extend(mood[:mood_n])
@@ -717,7 +725,6 @@ def build_suno_prompt(analysis, bpm, max_tags=15, max_len=1000, fixed_tags=None)
         tags.extend(production[:prod_n])
         if energy:
             tags.append(energy)
-        tags.extend(fixed_tags)
         if bpm:
             tags.append(f"{bpm} bpm")
         return tags
