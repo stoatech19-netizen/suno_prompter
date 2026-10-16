@@ -36,6 +36,25 @@ DEFAULT_CTA_FIXED_STYLE_TAGS = [
     "polished mix with a clear, present lead vocal",
 ]
 
+# Unlike DEFAULT_FIXED_STYLE_TAGS/DEFAULT_CTA_FIXED_STYLE_TAGS above (user
+# editable, and now skippable via the "고정 태그 적용" toggle), these two
+# notes are baked into every BGM/CTA generation prompt unconditionally —
+# they hold no matter what keyword, genre, or tag settings the user has.
+_PRO_COMPOSITION_NOTE = (
+    "Regardless of genre, the composition itself must sound like the work of a "
+    "professional composer/producer: deliberate, harmonically interesting chord "
+    "progressions (never a static one- or two-chord loop), a melodic hook that is "
+    "genuinely crafted and memorable rather than a placeholder riff, and a tight, "
+    "well-programmed beat/rhythm progression — never a rough, demo-quality sketch."
+)
+_BGM_NO_LYRICS_NOTE = (
+    "No audible lyrics anywhere — nothing that could be understood as sung words. "
+    "Wordless vocal textures (breathy ad-libs, chopped vocal chants/stutters, "
+    "oohs/aahs) ARE allowed as a textural element if the genre/mood genuinely calls "
+    "for it, as long as no actual words are discernible — this still counts as "
+    "instrumental."
+)
+
 # API keys are supplied by the caller per request (entered in the browser's
 # settings dialog, never read from an environment variable or a file), so
 # that when one hits its free-tier quota, requests roll over to the next
@@ -294,8 +313,9 @@ def analyze_with_gemini(file_path, local_features, api_keys):
 
     prompt = (
         "Listen to this music clip and describe its style for use as a reference "
-        "to generate a NEW, INSTRUMENTAL-ONLY track (no vocals, regardless of "
-        "whether this reference clip has vocals) with Suno.ai" + hints + ". "
+        "to generate a NEW background-music track with Suno.ai" + hints + ", "
+        "regardless of whether this reference clip itself has vocals. " +
+        _BGM_NO_LYRICS_NOTE + " " + _PRO_COMPOSITION_NOTE + " "
         "Your goal is NOT just to land in the right genre bucket — it is to "
         "capture THIS SPECIFIC clip's own rhythmic feel, exact instrumentation/"
         "playing technique, and production texture closely enough that a track "
@@ -465,8 +485,9 @@ def analyze_category(category, api_keys, tempo="medium", count=VARIATION_BATCH_S
         "request named a specific genre, fusion, or mood (e.g. 'EDM', '국악-재즈 퓨전', '잔잔한 "
         "카페 음악'), keep ALL options within that SAME named genre/mood/ "
         "fusion — vary them through different arrangement, instrumentation choice, or energy "
-        "nuance within that direction instead, never by swapping to an unrelated genre. All "
-        f"must be instrumental only (no vocals). Give each option its own bpm matching that "
+        "nuance within that direction instead, never by swapping to an unrelated genre. "
+        + _BGM_NO_LYRICS_NOTE + " " + _PRO_COMPOSITION_NOTE +
+        f" Give each option its own bpm matching that "
         f"{tempo} tempo band, a vivid "
         "mood/energy list specific to that option (not generic filler like 'upbeat' alone), "
         "and a list of 4 to 6 specific instruments/textures chosen to genuinely fit that "
@@ -580,7 +601,8 @@ def regenerate_variations(previous_analysis, reference_bpm, api_keys, tempo=None
         "professional arrangement — not a predictable or generic-sounding rehash. Every "
         "variation must also be clearly distinct from the others in the batch (different "
         "genre/instrumentation), not near-duplicates, while all sharing that same core mood. "
-        "They must remain instrumental only (no vocals). Give each variation "
+        + _BGM_NO_LYRICS_NOTE + " " + _PRO_COMPOSITION_NOTE +
+        " Give each variation "
         "its own title, different from before and from each other, in ENGLISH ONLY, "
         "using simple, everyday, concrete words that let someone grasp the mood at "
         "a glance (e.g. 'Bright Morning', 'Warm Afternoon') — avoid abstract, "
@@ -965,6 +987,7 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
         "lines that follow each tag, in the exact order they should "
         "appear — a normal, COMPLETE song structure (NOT a short 2-3 "
         "section repeating loop). " + _CTA_LENGTH_NOTE + " " + _CTA_DYNAMICS_NOTE +
+        " " + _PRO_COMPOSITION_NOTE +
         f" Write the actual lyric lines (not the bracket tags) in "
         f"{language_name}. " + _CTA_SAFETY_NOTE +
         f" Return the variations as a 'variations' array of exactly {count} objects."
@@ -1010,7 +1033,8 @@ def regenerate_cta(previous_analysis, language, tempo, api_keys, count=VARIATION
         "is — e.g. glossy maximalist pop/EDM/K-pop if that's what it was, "
         "or a ballad's warm acoustic polish, or a trot arrangement's lively "
         "character — never drifting to a different genre's production "
-        "style). " + _CTA_LENGTH_NOTE + " " + _CTA_DYNAMICS_NOTE + " Each "
+        "style). " + _CTA_LENGTH_NOTE + " " + _CTA_DYNAMICS_NOTE + " " +
+        _PRO_COMPOSITION_NOTE + " Each "
         "option needs its own genre, sub_genre, mood list, 4 to 6 "
         "instruments/textures, vocal_style, era_influence, 1 to 3 "
         "production descriptors naming specific textures that fit that SAME "
