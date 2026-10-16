@@ -47,8 +47,20 @@ const settingsPanelTheme = document.getElementById("settings-panel-theme");
 const themeOptions = document.querySelectorAll(".theme-option");
 const apiKeysList = document.getElementById("api-keys-list");
 const addApiKeyBtn = document.getElementById("add-api-key-btn");
+const openSavedBtn = document.getElementById("open-saved-btn");
+const savedCountBadge = document.getElementById("saved-count-badge");
+const savedDialog = document.getElementById("saved-dialog");
+const savedCloseBtn = document.getElementById("saved-close-btn");
+const savedListEl = document.getElementById("saved-list");
+const savedEmptyEl = document.getElementById("saved-empty");
+const savePromptBtn = document.getElementById("save-prompt-btn");
+const savePromptStar = document.getElementById("save-prompt-star");
+const savePromptLabel = document.getElementById("save-prompt-label");
 
-settingsBtn.addEventListener("click", () => settingsDialog.showModal());
+settingsBtn.addEventListener("click", () => {
+  if (savedDialog.open) savedDialog.close();
+  settingsDialog.showModal();
+});
 settingsCloseBtn.addEventListener("click", () => settingsDialog.close());
 // No backdrop-click-to-close: a drag-select in the textarea that ends
 // outside it can report the dialog itself as the click target, closing the
@@ -117,6 +129,199 @@ themeOptions.forEach((btn) => {
     saveTheme(theme);
   });
 });
+
+// Saved prompts live only in this browser's localStorage, same as the API
+// keys/fixed tags above -- no server-side storage at all. Each entry
+// bundles the exact variation object already used by tabState (analysis,
+// suno_prompt, title, lyrics_structure, bpm) plus display metadata, so
+// "불러오기" can drop it straight into tabState[mode].variationBatch and
+// reuse the normal render path (showTabResult).
+const SAVED_PROMPTS_STORAGE_KEY = "sunoSavedPrompts";
+const MODE_LABELS = { file: "파일분석", category: "BGM", cta: "CTA" };
+
+function loadSavedPrompts() {
+  try {
+    const raw = localStorage.getItem(SAVED_PROMPTS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // localStorage unavailable or corrupt -- fall through to empty.
+  }
+  return [];
+}
+
+function persistSavedPrompts() {
+  try {
+    localStorage.setItem(SAVED_PROMPTS_STORAGE_KEY, JSON.stringify(savedPrompts));
+  } catch {
+    // Ignore -- worst case the list just doesn't persist across reloads.
+  }
+}
+
+let savedPrompts = loadSavedPrompts();
+
+function makeSavedId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function findSavedEntryForCurrent(mode, item) {
+  if (!item) return null;
+  const serialized = JSON.stringify(item);
+  return savedPrompts.find((e) => e.mode === mode && JSON.stringify(e.item) === serialized) || null;
+}
+
+function summarizeSavedEntry(entry) {
+  const analysis = entry.item.analysis || {};
+  const bits = [];
+  if (analysis.genre) bits.push(analysis.sub_genre ? `${analysis.genre} · ${analysis.sub_genre}` : analysis.genre);
+  if (entry.keyword) bits.push(entry.keyword);
+  if (entry.item.bpm) bits.push(`${entry.item.bpm} bpm`);
+  return bits.join(" · ") || "-";
+}
+
+function updateSavedBadge() {
+  const count = savedPrompts.length;
+  savedCountBadge.hidden = count === 0;
+  savedCountBadge.textContent = count > 99 ? "99+" : String(count);
+}
+
+function renderSavedList() {
+  savedListEl.innerHTML = "";
+  const sorted = [...savedPrompts].sort((a, b) => b.savedAt - a.savedAt);
+  savedListEl.hidden = sorted.length === 0;
+  savedEmptyEl.hidden = sorted.length > 0;
+
+  for (const entry of sorted) {
+    const row = document.createElement("div");
+    row.className = "saved-item";
+
+    const main = document.createElement("div");
+    main.className = "saved-item-main";
+
+    const top = document.createElement("div");
+    top.className = "saved-item-top";
+    const badge = document.createElement("span");
+    badge.className = `mode-badge ${entry.mode}`;
+    badge.textContent = MODE_LABELS[entry.mode] || entry.mode;
+    const title = document.createElement("span");
+    title.className = "saved-title";
+    title.textContent = entry.item.title || "(제목 없음)";
+    top.append(badge, title);
+
+    const sub = document.createElement("div");
+    sub.className = "saved-sub";
+    sub.textContent = summarizeSavedEntry(entry);
+
+    const date = document.createElement("div");
+    date.className = "saved-date";
+    date.textContent = `${new Date(entry.savedAt).toLocaleString("ko-KR", {
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    })} 저장`;
+
+    main.append(top, sub, date);
+
+    const actions = document.createElement("div");
+    actions.className = "saved-actions";
+    const loadBtn = document.createElement("button");
+    loadBtn.type = "button";
+    loadBtn.className = "icon-sm-btn load-btn";
+    loadBtn.title = "불러오기";
+    loadBtn.textContent = "↩";
+    loadBtn.addEventListener("click", () => loadSavedEntry(entry.id));
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "icon-sm-btn delete-saved-btn";
+    delBtn.title = "삭제";
+    delBtn.textContent = "🗑";
+    delBtn.addEventListener("click", () => deleteSavedEntry(entry.id));
+    actions.append(loadBtn, delBtn);
+
+    row.append(main, actions);
+    savedListEl.appendChild(row);
+  }
+
+  updateSavedBadge();
+}
+
+function updateSaveButtonState() {
+  const state = tabState[activeTab];
+  const item = state.variationBatch[state.variationIndex];
+  if (!item) {
+    savePromptBtn.disabled = true;
+    savePromptBtn.classList.remove("saved");
+    savePromptStar.textContent = "☆";
+    savePromptLabel.textContent = "저장";
+    return;
+  }
+  savePromptBtn.disabled = false;
+  const already = !!findSavedEntryForCurrent(activeTab, item);
+  savePromptBtn.classList.toggle("saved", already);
+  savePromptStar.textContent = already ? "★" : "☆";
+  savePromptLabel.textContent = already ? "저장됨" : "저장";
+}
+
+function currentKeywordFor(mode) {
+  if (mode === "category") return categoryInput.value.trim();
+  if (mode === "cta") return ctaKeywordInput.value.trim();
+  return "";
+}
+
+function toggleSaveCurrent() {
+  const state = tabState[activeTab];
+  const item = state.variationBatch[state.variationIndex];
+  if (!item) return;
+
+  const existing = findSavedEntryForCurrent(activeTab, item);
+  if (existing) {
+    savedPrompts = savedPrompts.filter((e) => e.id !== existing.id);
+  } else {
+    savedPrompts.push({
+      id: makeSavedId(),
+      mode: activeTab,
+      savedAt: Date.now(),
+      keyword: currentKeywordFor(activeTab),
+      localFeatures: activeTab === "file" ? state.localFeatures : null,
+      item,
+    });
+  }
+  persistSavedPrompts();
+  renderSavedList();
+  updateSaveButtonState();
+}
+
+function loadSavedEntry(id) {
+  const entry = savedPrompts.find((e) => e.id === id);
+  if (!entry) return;
+  const state = tabState[entry.mode];
+  state.variationBatch = [entry.item];
+  state.variationIndex = 0;
+  if (entry.mode === "file" && entry.localFeatures) {
+    state.localFeatures = entry.localFeatures;
+  }
+  setActiveTab(entry.mode);
+  savedDialog.close();
+}
+
+function deleteSavedEntry(id) {
+  savedPrompts = savedPrompts.filter((e) => e.id !== id);
+  persistSavedPrompts();
+  renderSavedList();
+  updateSaveButtonState();
+}
+
+savePromptBtn.addEventListener("click", toggleSaveCurrent);
+openSavedBtn.addEventListener("click", () => {
+  if (settingsDialog.open) settingsDialog.close();
+  renderSavedList();
+  savedDialog.showModal();
+});
+savedCloseBtn.addEventListener("click", () => savedDialog.close());
+
+updateSavedBadge();
 
 // Gemini API keys live only in this browser's localStorage, exactly like
 // the fixed style tags above -- no install-time prompt and no .env file
@@ -487,6 +692,7 @@ function showTabResult(tab) {
     resultEl.hidden = true;
     refreshBtn.disabled = true;
     variationNav.hidden = true;
+    updateSaveButtonState();
     return;
   }
 
@@ -497,6 +703,7 @@ function showTabResult(tab) {
   updateVariationNav(tab);
   resultEl.hidden = false;
   refreshBtn.disabled = requestInFlight;
+  updateSaveButtonState();
 }
 
 function setActiveTab(tab) {

@@ -27,7 +27,12 @@
 <div class="container">
   <div class="page-header">
     <h1>Suno Prompt Generator</h1>
-    <button type="button" id="settings-btn" class="btn-kebab" title="고정 스타일 태그 설정" aria-label="고정 스타일 태그 설정">⋮</button>
+    <div class="header-icons">
+      <button type="button" id="open-saved-btn" class="btn-icon" title="저장된 프롬프트" aria-label="저장된 프롬프트">
+        🔖<span id="saved-count-badge" class="count-badge" hidden>0</span>
+      </button>
+      <button type="button" id="settings-btn" class="btn-kebab" title="고정 스타일 태그 설정" aria-label="고정 스타일 태그 설정">⋮</button>
+    </div>
   </div>
 
   <dialog id="settings-dialog">
@@ -72,6 +77,19 @@
         <button type="button" class="theme-option" data-theme-value="dark">다크</button>
       </div>
     </section>
+  </dialog>
+
+  <dialog id="saved-dialog">
+    <div class="dialog-header">
+      <h2>저장된 프롬프트</h2>
+      <button type="button" id="saved-close-btn" class="btn-icon" aria-label="닫기">✕</button>
+    </div>
+    <p class="settings-hint">마음에 드는 결과를 저장해두고 나중에 다시 꺼내 쓸 수 있습니다. 이 브라우저에만 저장되며, 다른 PC나 브라우저에서는 보이지 않습니다.</p>
+    <div id="saved-list" class="saved-list"></div>
+    <div id="saved-empty" class="saved-empty" hidden>
+      <span class="saved-empty-icon">🔖</span>
+      <p>아직 저장된 프롬프트가 없습니다.<br>결과 화면에서 "☆ 저장" 버튼을 눌러보세요.</p>
+    </div>
   </dialog>
 
   <div class="mode-tabs">
@@ -187,7 +205,9 @@
         </section>
 
         <div class="regen-row">
-          <span class="regen-row-spacer" aria-hidden="true"></span>
+          <button type="button" id="save-prompt-btn" class="save-btn" title="현재 변형을 이 브라우저에 저장">
+            <span class="star" id="save-prompt-star">☆</span><span id="save-prompt-label">저장</span>
+          </button>
           <div id="variation-nav" class="variation-nav" hidden>
             <button id="prev-variation-btn" type="button" class="btn-ghost" title="이전 변형">◀</button>
             <span id="variation-counter" class="variation-counter"></span>
