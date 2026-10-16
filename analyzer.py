@@ -215,8 +215,8 @@ GEMINI_VARIATION_ITEM_SCHEMA = {
     "required": GEMINI_ANALYSIS_SCHEMA["required"] + ["bpm"],
 }
 
-def _variations_schema(count, with_input_style=False):
-    schema = {
+def _variations_schema(count):
+    return {
         "type": "object",
         "properties": {
             "variations": {
@@ -228,18 +228,6 @@ def _variations_schema(count, with_input_style=False):
         },
         "required": ["variations"],
     }
-    if with_input_style:
-        # Lets the caller (app.py) know whether the free-text request was a
-        # product/category keyword or a literal music description, so it can
-        # skip appending the user's "고정 스타일 태그" fixed tags for the
-        # latter -- those tags assume generic high-energy retail BGM and
-        # would otherwise clash with e.g. a request for calm cafe music.
-        schema["properties"]["input_style"] = {
-            "type": "string",
-            "enum": ["category", "literal"],
-        }
-        schema["required"].append("input_style")
-    return schema
 
 
 def extract_local_features(file_path):
@@ -427,46 +415,46 @@ CATEGORY_TEMPO_HINTS = {
 
 def analyze_category(category, api_keys, tempo="medium", count=VARIATION_BATCH_SIZE):
     """Text-only call (no audio/reference track at all) that asks Gemini to
-    suggest background-music styles fitting a free-text description, which
-    can be EITHER a home-shopping product/category keyword (e.g. '주방가전',
-    '50대 여성 패션') OR a direct natural-language description of the music
-    itself (e.g. '카페에서 틀기 좋은 잔잔한 음악', '국악을 재즈 오케스트라랑
-    퓨전시킨 음악') — see the prompt below for how each is handled. All
-    options share the tempo band named by `tempo` (a CATEGORY_TEMPO_HINTS
-    key). Returns a tuple of (list of `count` variation dicts in the same
-    shape as regenerate_variations, input_style -- "category" or "literal",
-    so the caller knows whether to apply the user's fixed style tags)."""
+    suggest background-music styles fitting a free-text request, which can
+    be a home-shopping product/category keyword (e.g. '주방가전', '50대 여성
+    패션'), a direct natural-language description of the music itself (e.g.
+    '카페에서 틀기 좋은 잔잔한 음악'), or a mix of both (e.g. '여성 패션,
+    하우스풍, 밝은 분위기') — see the prompt below for how an explicitly named
+    genre/mood always takes priority over category-based inference,
+    regardless of what else is in the request. All options share the tempo
+    band named by `tempo` (a CATEGORY_TEMPO_HINTS key). Returns a list of
+    `count` variation dicts in the same shape as regenerate_variations."""
     tempo_hint = CATEGORY_TEMPO_HINTS.get(tempo, CATEGORY_TEMPO_HINTS["medium"])
     prompt = (
         "You are creating INSTRUMENTAL background music to fit a free-text request. "
         f"The request is: '{category}'. "
-        "This request is given in one of two styles — decide which one applies before "
-        "generating anything, based on what the text itself says:\n"
-        "(A) A product/category description for a Korean home-shopping (홈쇼핑/TV shopping) "
-        "broadcast, optionally combined with a target audience — such as an age group and/or "
-        "gender alongside the product (e.g. '주방가전', '식품', '50대 여성 패션' = fashion for "
-        "women in their 50s, '20대 남성 뷰티' = beauty products for men in their 20s). For this "
-        "style, infer the music mood/tempo/genre from home-shopping broadcast conventions (e.g. "
-        "warm and cozy for kitchen appliances, fresh and upbeat for food, clean and modern for "
-        "electronics, urgent and exciting for fashion/beauty sale events), adjusted for the "
-        "target audience's taste where one is given (e.g. an older audience generally favors a "
-        "more classic, less aggressive sound than a younger audience for the same category), and "
-        "keep it energetic enough to hold viewer attention and encourage purchase.\n"
-        "(B) A direct, free-form description of the music itself — its mood, genre, fusion, "
-        "instrumentation, or a scene/usage it should suit — e.g. '카페에서 틀기 좋은 잔잔한 음악' "
-        "(mellow music good for a cafe), '패션쇼에 어울리는 비트감 있는 edm 음악' (beat-driven EDM "
-        "fitting a fashion show), '긴장감 넘치는 인트로 음악' (a tense, suspenseful intro feel), "
-        "'국악을 재즈 오케스트라랑 퓨전시킨 음악' (Korean traditional gugak fused with a jazz "
-        "orchestra). For this style, follow the description LITERALLY as the creative brief — do "
-        "NOT reinterpret it as a retail product and do NOT force a 'persuade the viewer to buy' "
-        "energy onto it. If the description calls for something calm, mellow, tense, or ambient, "
-        "the music must actually BE calm, mellow, tense, or ambient — never pushed toward upbeat "
-        "sales energy just because this tool is normally used for shopping BGM. Treat any genre, "
-        "fusion, instrument, or scene the text names as a firm creative direction to honor, not a "
-        "hint to drift away from.\n"
+        "First, check whether the request explicitly names a genre, sub-genre, fusion, "
+        "or a specific mood/atmosphere for the MUSIC ITSELF — e.g. 'EDM', '하우스풍' (house "
+        "style), '트로트', '시티팝', '잔잔한' (mellow), '긴장감 넘치는' (tense), '국악-재즈 퓨전' "
+        "(gugak-jazz fusion) — no matter what else appears alongside it (a product/category "
+        "word, a target audience like age/gender, etc.). This takes priority over everything "
+        "below: if such a genre/mood IS named, treat it as the firm creative direction to "
+        "honor — do NOT dilute or override it with generic home-shopping-energy conventions, "
+        "and do NOT force a 'persuade the viewer to buy' energy onto it just because this tool "
+        "is normally used for shopping BGM. If it calls for something calm, mellow, tense, or "
+        "ambient, the music must actually BE calm, mellow, tense, or ambient. Any other words "
+        "in the request (e.g. '여성 패션' in '여성 패션, 하우스풍, 밝은 분위기') are then just "
+        "loose color/audience flavor on top of that named direction, never a reason to drift "
+        "away from it.\n"
+        "Only if NO genre/mood for the music is named anywhere in the request — i.e. it's "
+        "purely a product/category keyword, optionally with a target audience alongside it "
+        "(e.g. '주방가전', '식품', '50대 여성 패션' = fashion for women in their 50s, '20대 남성 "
+        "뷰티' = beauty products for men in their 20s) — infer the music mood/tempo/genre "
+        "yourself from home-shopping broadcast conventions (e.g. warm and cozy for kitchen "
+        "appliances, fresh and upbeat for food, clean and modern for electronics, urgent and "
+        "exciting for fashion/beauty sale events), adjusted for the target audience's taste "
+        "where one is given (e.g. an older audience generally favors a more classic, less "
+        "aggressive sound than a younger audience for the same category), and keep it "
+        "energetic enough to hold viewer attention and encourage purchase.\n"
         f"Generate {count} DISTINCT variations of the result, but ALL of them should share the "
-        f"same {tempo_hint} tempo feel. If the request is style (A), or is "
-        "style (B) but broad/open-ended about genre, make the options clearly distinct from each "
+        f"same {tempo_hint} tempo feel. If the request did NOT name a specific genre/mood (the "
+        "home-shopping-convention case above), or named one only broadly/open-endedly, make the "
+        "options clearly distinct from each "
         "other (different genre, mood/energy, and instrumentation) — avoid defaulting to "
         "the single most obvious/generic choice, and avoid letting every option converge on the "
         "same funk/disco/synth-pop instrument palette (slap bass, FM electric piano, brass stabs, "
@@ -474,8 +462,8 @@ def analyze_category(category, api_keys, tempo="medium", count=VARIATION_BATCH_S
         "mood/energy (e.g. one warm and cozy, one urgent and driving, one bright and playful) "
         "genuinely drive its instrument choices — could be orchestral, acoustic, rock, hip-hop, "
         "ambient, electronic, world, etc., whatever best fits that option's mood. If instead the "
-        "request is style (B) and already names a specific genre, fusion, or mood (e.g. "
-        "'국악-재즈 퓨전', '잔잔한 카페 음악'), keep ALL options within that SAME named genre/mood/ "
+        "request named a specific genre, fusion, or mood (e.g. 'EDM', '국악-재즈 퓨전', '잔잔한 "
+        "카페 음악'), keep ALL options within that SAME named genre/mood/ "
         "fusion — vary them through different arrangement, instrumentation choice, or energy "
         "nuance within that direction instead, never by swapping to an unrelated genre. All "
         f"must be instrumental only (no vocals). Give each option its own bpm matching that "
@@ -519,8 +507,7 @@ def analyze_category(category, api_keys, tempo="medium", count=VARIATION_BATCH_S
         "instrumentation/texture of that passage (e.g. \"[Strings Layer]\", \"[Rhythmic "
         "Break]\") rather than positional/narrative words like \"start\", \"intro\", "
         "\"buildup\", \"breakdown\", \"fade\", or \"outro\". "
-        "No vocal/lyric tags like [Verse] or [Chorus]. Also set input_style to \"category\" if "
-        "you used interpretation (A) above, or \"literal\" if you used interpretation (B). "
+        "No vocal/lyric tags like [Verse] or [Chorus]. "
         "Return the variations as a 'variations' array of "
         f"exactly {count} objects."
     )
@@ -529,12 +516,12 @@ def analyze_category(category, api_keys, tempo="medium", count=VARIATION_BATCH_S
         contents=[prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=_variations_schema(count, with_input_style=True),
+            response_schema=_variations_schema(count),
         ),
         api_keys=api_keys,
     )
     data = _response_json(response)
-    return data.get("variations") or [], data.get("input_style")
+    return data.get("variations") or []
 
 
 def regenerate_variations(previous_analysis, reference_bpm, api_keys, tempo=None, count=VARIATION_BATCH_SIZE):
@@ -781,8 +768,8 @@ GEMINI_CTA_SCHEMA = {
 }
 
 
-def _cta_variations_schema(count, with_input_style=False):
-    schema = {
+def _cta_variations_schema(count):
+    return {
         "type": "object",
         "properties": {
             "variations": {
@@ -794,14 +781,6 @@ def _cta_variations_schema(count, with_input_style=False):
         },
         "required": ["variations"],
     }
-    if with_input_style:
-        # See _variations_schema's comment -- same purpose, for the CTA keyword.
-        schema["properties"]["input_style"] = {
-            "type": "string",
-            "enum": ["category", "literal"],
-        }
-        schema["required"].append("input_style")
-    return schema
 
 
 # Defense in depth alongside the prompt's own safety instructions below,
@@ -907,55 +886,51 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
     """Text-only call that asks Gemini for `count` distinct, COMPLETE songs
     (with vocals and normal song structure) for a Korean home-shopping CTA,
     with lyrics written in the given language at the given tempo band. The
-    keyword can be EITHER a product/topic/occasion to loosely nudge the
-    vibe of (e.g. '여름 신상 원피스') OR a direct description of the song's
-    own desired genre/mood -- naming a genre (e.g. '트로트풍 홍보송', '발라드
-    느낌의 축하곡') or just describing a mood/atmosphere with no genre named
-    (e.g. '잔잔한 배경음악 같은 느낌'), in which case Gemini infers a fitting
-    genre itself while still keeping vocals and normal song structure --
-    see the prompt below for how each is handled. Returns a tuple of
-    (list of `count` variation dicts shaped like GEMINI_CTA_SCHEMA plus bpm,
-    input_style -- "category" or "literal", so the caller knows whether to
-    apply the user's fixed style tags)."""
+    keyword can be a product/topic/occasion to loosely nudge the vibe of
+    (e.g. '여름 신상 원피스'), a direct description of the song's own desired
+    genre/mood (e.g. '트로트풍 홍보송', '잔잔한 배경음악 같은 느낌'), or a mix
+    of both -- see the prompt below for how an explicitly named genre/mood
+    always takes priority, regardless of what else is in the request.
+    Returns a list of `count` variation dicts shaped like GEMINI_CTA_SCHEMA
+    plus bpm."""
     language_name = CTA_LANGUAGE_NAMES.get(language, "Korean")
     tempo_hint = CTA_TEMPO_HINTS.get(tempo, CTA_TEMPO_HINTS["medium"])
     prompt = (
         "You are writing a short, catchy CALL-TO-ACTION (CTA) song for a "
         f"Korean home-shopping/retail context. The request is: '{keyword}'. "
-        "This request is given in one of two styles — decide which one "
-        "applies before writing anything, based on what the text itself says:\n"
-        "(A) A product/topic/occasion keyword (e.g. '여름 신상 원피스', '다이어트 "
-        "보조제', '신규 가입 이벤트') that the song is only loosely inspired by. "
-        "This is NOT a jingle that describes or sells that topic directly — "
-        "it's a warm, upbeat feel-good mood piece the topic merely nudges the "
-        "vibe of (see the lyrics guidance below).\n"
-        "(B) A direct description of the SONG's own desired genre/mood/"
-        "atmosphere, which may EITHER name a specific genre — e.g. '트로트풍 "
-        "홍보송' (a trot-style promo song), '발라드 느낌의 축하곡' (a "
-        "ballad-style celebration song), '시티팝 느낌의 홍보 음악' (city-pop "
-        "style promo music) — OR describe only a mood/atmosphere/scene with NO "
-        "genre named at all — e.g. '잔잔한 배경음악 같은 느낌' (a calm, mellow, "
-        "background-music-like feel), '카페에서 틀기 좋은 잔잔한 음악' (mellow "
-        "music that would suit a cafe), '긴장감 넘치는 느낌' (a tense, "
-        "suspenseful feel). Either way, do NOT default to dance-pop/EDM/K-pop "
-        "just because that's this tool's usual style: if a genre is named, "
-        "build the song in THAT genre literally; if only a mood/atmosphere is "
-        "given with no genre, INFER whichever genre and arrangement naturally "
-        "fits that described mood instead (e.g. a calm/mellow/background-music "
-        "feel → a soft acoustic or piano-led ballad, or a gentle acoustic-pop "
-        "vocal arrangement; a tense feel → a dramatic, driving arrangement) and "
-        "build the song in THAT inferred genre. A calm/mellow/ambient mood "
-        "describing the FEEL does NOT mean dropping the vocals or the song "
-        "structure — it only changes which genre/arrangement carries them.\n"
-        "Either way (A or B), this is a COMPLETE, fully-formed song with normal "
+        "First, check whether the request explicitly names a genre, sub-genre, or a "
+        "specific mood/atmosphere for the SONG ITSELF — e.g. '트로트풍 홍보송' (names "
+        "'트로트'), '발라드 느낌의 축하곡' (names '발라드'), '시티팝 느낌의 홍보 음악' (names "
+        "'시티팝'), '잔잔한 배경음악 같은 느낌' (names a mood, '잔잔한', with no genre), '카페에서 "
+        "틀기 좋은 잔잔한 음악', '긴장감 넘치는 느낌' — no matter what else appears alongside it "
+        "(a product/topic keyword, an occasion, a target audience, etc.). This takes "
+        "priority over everything below: if a specific genre IS named, build the song in "
+        "THAT genre literally, and do NOT dilute or override it with generic upbeat "
+        "sales energy just because a product/topic is also mentioned. If only a mood/"
+        "atmosphere is named with no genre, INFER whichever genre and arrangement "
+        "naturally fits that described mood (e.g. a calm/mellow/background-music feel → "
+        "a soft acoustic or piano-led ballad, or a gentle acoustic-pop vocal arrangement; "
+        "a tense feel → a dramatic, driving arrangement) and build the song in THAT "
+        "inferred genre. Either way, do NOT default to dance-pop/EDM/K-pop just because "
+        "that's this tool's usual style. A calm/mellow/ambient mood describing the FEEL "
+        "does NOT mean dropping the vocals or the song structure — it only changes which "
+        "genre/arrangement carries them.\n"
+        "Only if NO genre/mood for the song is named anywhere in the request — i.e. it's "
+        "purely a product/topic/occasion keyword (e.g. '여름 신상 원피스', '다이어트 "
+        "보조제', '신규 가입 이벤트') with nothing said about the music itself — treat it as "
+        "only loosely inspiring the song: this is NOT a jingle that describes or sells "
+        "that topic directly, it's a warm, upbeat feel-good mood piece the topic merely "
+        "nudges the vibe of (see the lyrics guidance below).\n"
+        "Either way, this is a COMPLETE, fully-formed song with normal "
         "song structure (e.g. intro, verse, chorus, possibly a bridge, outro) "
         "and it includes VOCALS — it is NOT a seamless instrumental loop. "
         f"Generate {count} DISTINCT options, each clearly different in "
         "mood/instrumentation from the others, but ALL options should "
-        f"share the same {tempo_hint} tempo feel. If the request is style (A), "
-        "or is style (B) but broad/open-ended about genre: " + _CTA_GENRE_NOTE +
-        " If instead the request is style (B) and either names a specific "
-        "genre or clearly implies one through its mood/atmosphere, build ALL "
+        f"share the same {tempo_hint} tempo feel. If the request did NOT name a genre/mood "
+        "for the song (the loosely-inspired-by-topic case above), or named one only "
+        "broadly/open-endedly: " + _CTA_GENRE_NOTE +
+        " If instead the request named a specific genre, or clearly implies one through "
+        "its mood/atmosphere, build ALL "
         "options in THAT SAME genre instead (pick ONE consistent inferred "
         "genre if none was named, and keep every option within it) — ignore "
         "the chart-pop/EDM/K-pop direction above, vary the options through "
@@ -991,22 +966,21 @@ def generate_cta(keyword, language, tempo, api_keys, count=VARIATION_BATCH_SIZE)
         "appear — a normal, COMPLETE song structure (NOT a short 2-3 "
         "section repeating loop). " + _CTA_LENGTH_NOTE + " " + _CTA_DYNAMICS_NOTE +
         f" Write the actual lyric lines (not the bracket tags) in "
-        f"{language_name}. " + _CTA_SAFETY_NOTE + " Also set input_style to \"category\" if "
-        "you used interpretation (A) above, or \"literal\" if you used interpretation (B). "
-        f"Return the variations as a 'variations' array of exactly {count} objects."
+        f"{language_name}. " + _CTA_SAFETY_NOTE +
+        f" Return the variations as a 'variations' array of exactly {count} objects."
     )
 
     response = _generate_with_rotation(
         contents=[prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=_cta_variations_schema(count, with_input_style=True),
+            response_schema=_cta_variations_schema(count),
             safety_settings=_CTA_SAFETY_SETTINGS,
         ),
         api_keys=api_keys,
     )
     data = _response_json(response)
-    return data.get("variations") or [], data.get("input_style")
+    return data.get("variations") or []
 
 
 def regenerate_cta(previous_analysis, language, tempo, api_keys, count=VARIATION_BATCH_SIZE):

@@ -70,6 +70,13 @@
   <form id="category-form" hidden>
     <input type="text" id="category-input" class="category-input" autocomplete="off" placeholder="상품 카테고리를 입력하거나, 또는 곡의 분위기를 직접 묘사해주세요. (예: 50대 여성 화장품 / 카페에서 틀기 좋은 잔잔한 음악 등)">
     <div class="actions-row">
+      <label class="tags-toggle">
+        <span class="toggle-switch">
+          <input type="checkbox" id="category-tags-toggle" checked>
+          <span class="toggle-slider"></span>
+        </span>
+        고정 태그 적용
+      </label>
       <select id="category-tempo-select" class="lang-select" aria-label="템포">
         <option value="fast">Fast</option>
         <option value="medium" selected>Medium</option>
@@ -82,6 +89,13 @@
   <form id="cta-form" hidden>
     <input type="text" id="cta-keyword-input" class="category-input" autocomplete="off" placeholder="상품 카테고리를 입력하거나, 또는 곡의 분위기를 직접 묘사해주세요. (예: 50대 여성 화장품 / 카페에서 틀기 좋은 잔잔한 음악 등)">
     <div class="actions-row">
+      <label class="tags-toggle">
+        <span class="toggle-switch">
+          <input type="checkbox" id="cta-tags-toggle" checked>
+          <span class="toggle-slider"></span>
+        </span>
+        고정 태그 적용
+      </label>
       <select id="cta-language-select" class="lang-select" aria-label="가사 언어">
         <option value="ko">한국어</option>
         <option value="en">English</option>

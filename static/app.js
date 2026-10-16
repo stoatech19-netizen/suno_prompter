@@ -9,11 +9,13 @@ const tabCta = document.getElementById("tab-cta");
 const categoryForm = document.getElementById("category-form");
 const categoryInput = document.getElementById("category-input");
 const categoryTempoSelect = document.getElementById("category-tempo-select");
+const categoryTagsToggle = document.getElementById("category-tags-toggle");
 const categorySubmitBtn = document.getElementById("category-submit-btn");
 const ctaForm = document.getElementById("cta-form");
 const ctaKeywordInput = document.getElementById("cta-keyword-input");
 const ctaLanguageSelect = document.getElementById("cta-language-select");
 const ctaTempoSelect = document.getElementById("cta-tempo-select");
+const ctaTagsToggle = document.getElementById("cta-tags-toggle");
 const ctaSubmitBtn = document.getElementById("cta-submit-btn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
@@ -357,12 +359,11 @@ const EMPTY_LOCAL_FEATURES = { duration_sec: null, bpm: null, key: null, mode: n
 // it completes.
 const tabState = {
   file: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0 },
-  // inputStyle ("category" or "literal") comes back from the server, which
-  // has Gemini decide whether the typed keyword was a product/category or a
-  // literal music description; "literal" means the fixed style tags get
-  // skipped (see regenerate() below, which resends it on every "다시 생성").
-  category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, inputStyle: null, tempo: "medium" },
-  cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko", tempo: "medium", inputStyle: null },
+  // applyFixedTags mirrors the tab's own toggle switch at the time of the
+  // last generate/regenerate, so regenerate() (which doesn't re-read the
+  // DOM) resends the same choice on every "다시 생성".
+  category: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, applyFixedTags: true, tempo: "medium" },
+  cta: { localFeatures: EMPTY_LOCAL_FEATURES, variationBatch: [], variationIndex: 0, language: "ko", tempo: "medium", applyFixedTags: true },
 };
 let activeTab = "file";
 let requestInFlight = false;
@@ -539,7 +540,7 @@ async function regenerate() {
             tempo: state.tempo,
             fixed_tags: getCtaFixedTagsArray(),
             api_keys: getApiKeysForRequest(),
-            input_style: state.inputStyle,
+            apply_fixed_tags: state.applyFixedTags,
           }),
         })
       : await fetch("/api/regenerate", {
@@ -551,7 +552,7 @@ async function regenerate() {
             tempo: state.tempo,
             fixed_tags: getFixedTagsArray(),
             api_keys: getApiKeysForRequest(),
-            input_style: state.inputStyle,
+            apply_fixed_tags: state.applyFixedTags,
           }),
         });
     const data = await res.json();
@@ -564,9 +565,6 @@ async function regenerate() {
     setStatus(null);
     state.variationBatch = data.variations || [];
     state.variationIndex = 0;
-    if ("input_style" in data) {
-      state.inputStyle = data.input_style;
-    }
     if (activeTab === tab) {
       showTabResult(tab);
     }
@@ -645,6 +643,7 @@ categoryForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const category = categoryInput.value.trim();
   const tempo = categoryTempoSelect.value;
+  const applyFixedTags = categoryTagsToggle.checked;
   if (!category || requestInFlight) return;
 
   requestInFlight = true;
@@ -657,7 +656,13 @@ categoryForm.addEventListener("submit", async (e) => {
     const res = await fetch("/api/analyze-category", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, tempo, fixed_tags: getFixedTagsArray(), api_keys: getApiKeysForRequest() }),
+      body: JSON.stringify({
+        category,
+        tempo,
+        fixed_tags: getFixedTagsArray(),
+        api_keys: getApiKeysForRequest(),
+        apply_fixed_tags: applyFixedTags,
+      }),
     });
     const data = await res.json();
 
@@ -670,7 +675,7 @@ categoryForm.addEventListener("submit", async (e) => {
     tabState.category.localFeatures = EMPTY_LOCAL_FEATURES;
     tabState.category.variationBatch = data.variations || [];
     tabState.category.variationIndex = 0;
-    tabState.category.inputStyle = data.input_style ?? null;
+    tabState.category.applyFixedTags = applyFixedTags;
     tabState.category.tempo = tempo;
     if (activeTab === "category") {
       showTabResult("category");
@@ -691,6 +696,7 @@ ctaForm.addEventListener("submit", async (e) => {
   const keyword = ctaKeywordInput.value.trim();
   const language = ctaLanguageSelect.value;
   const tempo = ctaTempoSelect.value;
+  const applyFixedTags = ctaTagsToggle.checked;
   if (!keyword || requestInFlight) return;
 
   requestInFlight = true;
@@ -709,6 +715,7 @@ ctaForm.addEventListener("submit", async (e) => {
         tempo,
         fixed_tags: getCtaFixedTagsArray(),
         api_keys: getApiKeysForRequest(),
+        apply_fixed_tags: applyFixedTags,
       }),
     });
     const data = await res.json();
@@ -724,7 +731,7 @@ ctaForm.addEventListener("submit", async (e) => {
     tabState.cta.variationIndex = 0;
     tabState.cta.language = language;
     tabState.cta.tempo = tempo;
-    tabState.cta.inputStyle = data.input_style ?? null;
+    tabState.cta.applyFixedTags = applyFixedTags;
     if (activeTab === "cta") {
       showTabResult("cta");
     }
