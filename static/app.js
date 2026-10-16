@@ -467,7 +467,7 @@ if (getApiKeysForRequest().length === 0) {
 
 const FIXED_TAGS_STORAGE_KEY = "sunoFixedStyleTags";
 const DEFAULT_FIXED_TAGS = [
-  "full-energy hook hits from the very first second",
+  "massive hook explodes in at full peak energy from the very first beat",
   "relentless driving rhythm with unbroken momentum",
   "wall-of-sound density at uniform peak intensity throughout",
   "seamless repeating loop with identical energy at every point",
@@ -532,11 +532,34 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
     render();
   }
 
+  // Order matters (earlier tags carry more weight in the final Style
+  // string — see build_suno_prompt), so dragging by the handle lets the
+  // user reorder without retyping. Dropping on a row always inserts the
+  // dragged tag immediately before it, regardless of drag direction.
+  let dragSourceIndex = null;
+
+  function reorder(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const [moved] = tags.splice(fromIndex, 1);
+    const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    tags.splice(insertAt, 0, moved);
+    save();
+    render();
+  }
+
   function render() {
     listEl.innerHTML = "";
     tags.forEach((value, index) => {
       const row = document.createElement("div");
       row.className = "tag-row";
+      row.draggable = true;
+
+      const handle = document.createElement("span");
+      handle.className = "drag-handle";
+      handle.textContent = "⠿";
+      handle.setAttribute("aria-hidden", "true");
+      handle.title = "드래그하여 순서 변경";
+      row.appendChild(handle);
 
       const input = document.createElement("input");
       input.id = `${inputIdPrefix}-${index}`;
@@ -558,6 +581,34 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
       removeBtn.title = "삭제";
       removeBtn.addEventListener("click", () => remove(index));
       row.appendChild(removeBtn);
+
+      row.addEventListener("dragstart", (e) => {
+        dragSourceIndex = index;
+        row.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(index));
+      });
+      row.addEventListener("dragend", () => {
+        dragSourceIndex = null;
+        listEl.querySelectorAll(".tag-row").forEach((r) => {
+          r.classList.remove("dragging", "drag-over");
+        });
+      });
+      row.addEventListener("dragover", (e) => {
+        if (dragSourceIndex === null || dragSourceIndex === index) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        row.classList.add("drag-over");
+      });
+      row.addEventListener("dragleave", () => {
+        row.classList.remove("drag-over");
+      });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        row.classList.remove("drag-over");
+        if (dragSourceIndex === null || dragSourceIndex === index) return;
+        reorder(dragSourceIndex, index);
+      });
 
       listEl.appendChild(row);
     });
