@@ -543,52 +543,72 @@ function createFixedTagList({ storageKey, defaultTags, listEl, addBtnEl, inputId
   // at the document level in the capture phase, which silently kills our
   // own dragstart listener too (the native drag ghost still shows, but our
   // reorder logic never runs). Plain mouse events sidestep that entirely.
-  function reorder(fromIndex, toIndex) {
-    if (fromIndex === toIndex) return;
-    const [moved] = tags.splice(fromIndex, 1);
-    const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
-    tags.splice(insertAt, 0, moved);
-    save();
-    render();
-  }
-
   function startDrag(sourceIndex, row, startEvent) {
     const startY = startEvent.clientY;
-    // Snapshot every row's position once, before the dragged row gets a
+    // Snapshot every row's original position once, before anything gets a
     // CSS transform applied — getBoundingClientRect() reflects live
-    // transforms, so re-measuring mid-drag would make the floating row's
-    // own rect chase the cursor and corrupt the hit-test.
+    // transforms, so re-measuring mid-drag would make a floating/shifted
+    // row's own rect chase itself and corrupt the hit-test.
     const rows = Array.from(listEl.querySelectorAll(".tag-row"));
     const rects = rows.map((r) => r.getBoundingClientRect());
 
+    // `order[slot] = originalIndex currently previewed in that visual
+    // slot` — starts as the identity order and gets reshuffled live as the
+    // cursor crosses each row's midpoint, so the other tags visibly slide
+    // out of the way before the mouse is ever released (previously they
+    // only got a thin highlight border, which the floating card mostly
+    // covered — this is what made it look like nothing happened short of
+    // a near-total overlap).
+    let order = rows.map((_, i) => i);
+
+    function slotOf(originalIndex) {
+      return order.indexOf(originalIndex);
+    }
+
     // Midpoint-based hit test (not rect.top/bottom containment) so every
-    // y value maps to a row with no dead zone in the gaps between them —
+    // y value maps to a slot with no dead zone in the gaps between rows —
     // releasing the mouse in a gap used to silently drop the reorder.
-    function indexAtY(y) {
+    function slotAtY(y) {
       for (let i = 0; i < rects.length; i++) {
         if (y < rects[i].top + rects[i].height / 2) return i;
       }
       return rects.length - 1;
     }
 
+    function applyPreview() {
+      rows.forEach((r, originalIndex) => {
+        if (originalIndex === sourceIndex) return;
+        const offset = rects[slotOf(originalIndex)].top - rects[originalIndex].top;
+        r.style.transform = offset ? `translateY(${offset}px)` : "";
+      });
+    }
+
     row.classList.add("dragging");
 
     function onMouseMove(e) {
       row.style.transform = `translateY(${e.clientY - startY}px)`;
-      rows.forEach((r) => r.classList.remove("drag-over"));
-      const overIndex = indexAtY(e.clientY);
-      if (overIndex !== sourceIndex) rows[overIndex].classList.add("drag-over");
+      const targetSlot = slotAtY(e.clientY);
+      const currentSlot = slotOf(sourceIndex);
+      if (targetSlot !== currentSlot) {
+        order.splice(currentSlot, 1);
+        order.splice(targetSlot, 0, sourceIndex);
+        applyPreview();
+      }
     }
 
-    function onMouseUp(e) {
+    function onMouseUp() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
-      const targetIndex = indexAtY(e.clientY);
-      row.style.transform = "";
-      rows.forEach((r) => r.classList.remove("dragging", "drag-over"));
-      if (targetIndex !== sourceIndex) {
-        reorder(sourceIndex, targetIndex);
+      rows.forEach((r) => {
+        r.style.transform = "";
+        r.classList.remove("dragging");
+      });
+      if (slotOf(sourceIndex) !== sourceIndex) {
+        const originalTags = tags.slice();
+        tags = order.map((originalIndex) => originalTags[originalIndex]);
+        save();
       }
+      render();
     }
 
     document.addEventListener("mousemove", onMouseMove);
