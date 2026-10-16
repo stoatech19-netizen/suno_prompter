@@ -21,7 +21,7 @@ GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash"]
 # Phrased positively (no "no build-up"/"intro") since negative instructions
 # are less reliable for Suno to follow than stating what should happen instead.
 DEFAULT_FIXED_STYLE_TAGS = [
-    "explosive, massive hook slams in at the very first beat, instantly at full peak energy",
+    "massive hook explodes in at full peak energy from the very first beat",
     "relentless driving rhythm with unbroken momentum",
     "wall-of-sound density at uniform peak intensity throughout",
     "seamless repeating loop with identical energy at every point",
