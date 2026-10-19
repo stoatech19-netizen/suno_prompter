@@ -33,46 +33,37 @@ if not defined PYEXE (
     if !errorlevel!==0 set "PYEXE=py -3"
 )
 
+set "USED_EXISTING_PYTHON=0"
 if defined PYEXE (
     echo [OK] Found existing Python: !PYEXE!
+    set "USED_EXISTING_PYTHON=1"
 ) else (
-    echo [INFO] Python not found. Downloading the official Python 3.12.7 installer...
-    set "PY_INSTALLER=%TEMP%\python-3.12.7-amd64.exe"
-    powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe' -OutFile '!PY_INSTALLER!' } catch { Write-Host ('[DETAIL] ' + $_.Exception.Message); exit 1 }"
-
-    if not exist "!PY_INSTALLER!" (
-        echo.
-        echo [ERROR] Could not download the Python installer ^(see [DETAIL] above for the reason^).
-        echo Please check the internet connection and try again, or install Python
-        echo manually from https://www.python.org/downloads/ ^(check "Add python.exe
-        echo to PATH" during install^) and re-run setup.bat.
+    call :INSTALL_OWN_PYTHON
+    if not defined PYEXE (
         pause
         exit /b 1
     )
-
-    echo [INFO] Installing Python for the current user, no admin rights required...
-    "!PY_INSTALLER!" /quiet InstallAllUsers=0 PrependPath=1 Include_launcher=0 Include_test=0
-    del /f /q "!PY_INSTALLER!" >nul 2>nul
-
-    set "PYEXE=%LocalAppData%\Programs\Python\Python312\python.exe"
-    if not exist "!PYEXE!" (
-        echo.
-        echo [ERROR] Python installation did not finish as expected.
-        echo Please install Python manually from https://www.python.org/downloads/
-        echo ^(check "Add python.exe to PATH" during install^) and re-run setup.bat.
-        pause
-        exit /b 1
-    )
-    echo [OK] Python installed: !PYEXE!
-
-    REM Record that THIS script installed Python, so uninstall.bat knows it
-    REM is safe to offer removing it (and won't touch a pre-existing Python).
-    > ".python_installed_by_setup.txt" echo PYTHON_VERSION=3.12.7
 )
 
 echo.
 echo [INFO] Creating virtual environment (.venv)...
 "!PYEXE!" -m venv ".venv"
+if not exist ".venv\Scripts\python.exe" (
+    if "!USED_EXISTING_PYTHON!"=="1" (
+        REM The Python already on this PC found above can still be a broken
+        REM or incomplete install (corrupt DLLs, interrupted install, etc) -
+        REM venv creation is where that first becomes visible, as a copy
+        REM failure. Rather than making the user diagnose and manually
+        REM reinstall Python themselves, fall back to our own known-good
+        REM Python 3.12.7 and retry once before giving up.
+        echo [WARN] Could not create a virtual environment with the existing Python - it may be damaged. Installing a known-good Python 3.12.7 instead...
+        set "PYEXE="
+        call :INSTALL_OWN_PYTHON
+        if defined PYEXE (
+            "!PYEXE!" -m venv ".venv"
+        )
+    )
+)
 if not exist ".venv\Scripts\python.exe" (
     echo [ERROR] Failed to create the virtual environment.
     pause
@@ -102,3 +93,42 @@ echo Double-click run.bat to start the app, then open the settings
 echo (the ... menu in the top-right corner) and paste your key there.
 echo.
 pause
+exit /b 0
+
+REM Downloads and installs our own known-good Python 3.12.7 for the
+REM current user. Sets PYEXE on success; leaves it undefined on failure
+REM (after printing its own error message) so the caller decides whether
+REM to stop the script.
+:INSTALL_OWN_PYTHON
+echo [INFO] Downloading the official Python 3.12.7 installer...
+set "PY_INSTALLER=%TEMP%\python-3.12.7-amd64.exe"
+powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe' -OutFile '!PY_INSTALLER!' } catch { Write-Host ('[DETAIL] ' + $_.Exception.Message); exit 1 }"
+
+if not exist "!PY_INSTALLER!" (
+    echo.
+    echo [ERROR] Could not download the Python installer ^(see [DETAIL] above for the reason^).
+    echo Please check the internet connection and try again, or install Python
+    echo manually from https://www.python.org/downloads/ ^(check "Add python.exe
+    echo to PATH" during install^) and re-run setup.bat.
+    exit /b 1
+)
+
+echo [INFO] Installing Python for the current user, no admin rights required...
+"!PY_INSTALLER!" /quiet InstallAllUsers=0 PrependPath=1 Include_launcher=0 Include_test=0
+del /f /q "!PY_INSTALLER!" >nul 2>nul
+
+set "PYEXE=%LocalAppData%\Programs\Python\Python312\python.exe"
+if not exist "!PYEXE!" (
+    echo.
+    echo [ERROR] Python installation did not finish as expected.
+    echo Please install Python manually from https://www.python.org/downloads/
+    echo ^(check "Add python.exe to PATH" during install^) and re-run setup.bat.
+    set "PYEXE="
+    exit /b 1
+)
+echo [OK] Python installed: !PYEXE!
+
+REM Record that THIS script installed Python, so uninstall.bat knows it
+REM is safe to offer removing it (and won't touch a pre-existing Python).
+> ".python_installed_by_setup.txt" echo PYTHON_VERSION=3.12.7
+exit /b 0
