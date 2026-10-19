@@ -70,8 +70,8 @@ if exist ".python_installed_by_setup.txt" (
 if exist ".git_installed_by_bootstrap.txt" (
     echo.
     echo ------------------------------------------------------------
-    echo NOTE: bootstrap.bat also installed Git on this PC, because
-    echo no working git was found here before.
+    echo NOTE: this app also installed Git on this PC, because no
+    echo working git was found here before.
     echo.
     set /p "REMOVEGIT=Also uninstall Git now? (y/n): "
     if /i "!REMOVEGIT!"=="y" (

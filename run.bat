@@ -20,6 +20,39 @@ rem WOW64/emulation).
 set "GIT_OK=0"
 for /f "delims=" %%G in ('powershell -NoProfile -Command "try { $g = (Get-Command git -ErrorAction Stop).Source; $b = [IO.File]::ReadAllBytes($g); $off = [BitConverter]::ToInt32($b, 0x3C); $mach = [BitConverter]::ToUInt16($b, $off + 4); $want = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture) { 'X64' {0x8664} 'X86' {0x014c} 'Arm64' {0xAA64} 'Arm' {0x01c4} default {-1} }; if ($mach -eq $want) {'OK'} else {'MISMATCH'} } catch {'MISSING'}" 2^>nul') do set "GIT_OK=%%G"
 
+rem The installer (Inno Setup exe) only bundles a .git snapshot and runs
+rem setup.bat, which never checks for git -- unlike bootstrap.bat's clone
+rem path, it assumes git already exists on the target PC. If it doesn't,
+rem the update check below was silently skipped on every single launch
+rem forever, permanently pinning the app to whatever snapshot happened to
+rem be baked into that installer build. Install git here too (same
+rem silent, per-user install bootstrap.bat already does) so this app can
+rem self-update regardless of which path it was installed through.
+if "!GIT_OK!"=="MISSING" (
+    echo [INFO] git was not found - installing it now so this app can check for updates...
+    set "GIT_INSTALLER=%TEMP%\git-for-windows-installer.exe"
+    powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $url = ((Invoke-RestMethod -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest').assets | Where-Object { $_.name -like '*-64-bit.exe' } | Select-Object -First 1).browser_download_url; Invoke-WebRequest -Uri $url -OutFile '!GIT_INSTALLER!' } catch { exit 1 }" >nul 2>nul
+    if exist "!GIT_INSTALLER!" (
+        "!GIT_INSTALLER!" /VERYSILENT /NORESTART /NOCANCEL /SP- /CURRENTUSER
+        del /f /q "!GIT_INSTALLER!" >nul 2>nul
+        rem The installer updates the registry, not this already-running
+        rem process's PATH, so pull the user PATH back in before re-checking.
+        for /f "usebackq tokens=2,*" %%A in (`reg query "HKCU\Environment" /v Path 2^>nul`) do set "PATH=%%B;%PATH%"
+        if not exist ".git_installed_by_bootstrap.txt" (
+            > ".git_installed_by_bootstrap.txt" echo GIT_INSTALLED=1
+        )
+        for /f "delims=" %%G in ('powershell -NoProfile -Command "try { $g = (Get-Command git -ErrorAction Stop).Source; $b = [IO.File]::ReadAllBytes($g); $off = [BitConverter]::ToInt32($b, 0x3C); $mach = [BitConverter]::ToUInt16($b, $off + 4); $want = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture) { 'X64' {0x8664} 'X86' {0x014c} 'Arm64' {0xAA64} 'Arm' {0x01c4} default {-1} }; if ($mach -eq $want) {'OK'} else {'MISMATCH'} } catch {'MISSING'}" 2^>nul') do set "GIT_OK=%%G"
+        if "!GIT_OK!"=="OK" (
+            echo [OK] git installed.
+        ) else (
+            echo [WARN] git install did not finish as expected - skipping the update check this time.
+        )
+    ) else (
+        echo [WARN] Could not install git automatically ^(offline?^). Skipping the update check this time.
+    )
+    echo.
+)
+
 if "!GIT_OK!"=="OK" (
     if exist ".git" (
         echo Checking for updates...
