@@ -108,7 +108,18 @@ echo Your browser will open automatically in a moment.
 echo Close this window to stop the server.
 echo.
 
-start /b "" cmd /c "timeout /t 2 >nul && start http://127.0.0.1:5001"
+rem The old version just slept a fixed 2 seconds before opening the browser,
+rem not an actual readiness check. The first launch after a reboot (or right
+rem after an update reinstalled packages) can take much longer than 2s to
+rem start listening -- librosa/numba/scipy are heavy imports, and Windows
+rem Defender often real-time-scans freshly written/updated .venv files the
+rem first time they're touched. When that happens, the browser opens before
+rem Flask is ready, shows a dead page, and the user has to close and relaunch
+rem for it to work. Poll the port with curl (bundled with Win10/11) instead,
+rem so the browser only opens once the server actually answers (falling back
+rem to opening anyway after ~30s so a real startup failure still ends up
+rem visible instead of silent).
+start /b "" cmd /c "curl.exe -s -o nul --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5001/ & start http://127.0.0.1:5001"
 ".venv\Scripts\python.exe" app.py
 
 if errorlevel 1 (
