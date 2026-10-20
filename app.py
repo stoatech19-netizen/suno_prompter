@@ -61,7 +61,7 @@ APP_VERSION = _get_app_version()
 # the page itself pings /api/heartbeat while open; if no ping arrives for a
 # while (tab/browser closed, or the PC put the page to sleep for good), this
 # watcher thread shuts the process down so it doesn't linger invisibly.
-_HEARTBEAT_TIMEOUT_SECONDS = 15
+_HEARTBEAT_TIMEOUT_SECONDS = 30
 _last_heartbeat_at = None
 _heartbeat_lock = threading.Lock()
 
@@ -342,4 +342,11 @@ def regenerate():
 
 if __name__ == "__main__":
     threading.Thread(target=_watch_heartbeat, daemon=True).start()
-    app.run(host="127.0.0.1", port=5001, debug=True)
+    # threaded=True matters here, not just for throughput: without it the
+    # dev server handles one request at a time, so a long-running generate
+    # call (these routinely take up to 1-2 minutes -- see analyzer.py) would
+    # block it from ever answering /api/heartbeat in the meantime. The
+    # watchdog above then sees no heartbeat for 15s and kills the whole
+    # process mid-request, which looked like the server randomly dying on
+    # its own during normal use.
+    app.run(host="127.0.0.1", port=5001, debug=True, threaded=True)
