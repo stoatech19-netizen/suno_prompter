@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!--
+  Opened directly from disk (file://) by run.bat the instant it launches
+  app.py, so the user sees something immediately instead of a blank/failed
+  tab while Flask is still starting up. Polls the real server in the
+  background and swaps over to it as soon as it answers; never served by
+  Flask itself, since the whole point is to work before Flask is up.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suno Prompt Generator</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --accent: #7c5cff;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14141a;
+      --fg: #f0f0f0;
+      --muted: #9a9aa5;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap {
+    text-align: center;
+    padding: 24px;
+  }
+  .spinner {
+    width: 36px;
+    height: 36px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  p { margin: 0; font-size: 1rem; }
+  #hint {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    visibility: hidden;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="spinner"></div>
+    <p>프로그램 구동을 준비 중입니다.. 잠시만 기다려주세요.</p>
+    <p id="hint">시작이 평소보다 오래 걸리고 있어요. 계속 기다려 주세요.</p>
+  </div>
+  <script>
+    var TARGET = "http://127.0.0.1:5001/";
+    var attempts = 0;
+    (function poll() {
+      attempts += 1;
+      if (attempts === 20) {
+        document.getElementById("hint").style.visibility = "visible";
+      }
+      fetch(TARGET, { mode: "no-cors", cache: "no-store" })
+        .then(function () { window.location.replace(TARGET); })
+        .catch(function () { setTimeout(poll, 500); });
+    })();
+  </script>
+</body>
+</html>
