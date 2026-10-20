@@ -2,6 +2,7 @@
 import json
 import time
 
+import httpx
 import numpy as np
 import librosa
 from google import genai
@@ -81,8 +82,22 @@ _RETRYABLE_MARKERS = (
 # model in GEMINI_MODELS instead.
 _MODEL_UNAVAILABLE_MARKERS = ("NOT_FOUND", "NO LONGER AVAILABLE", "NOT_SUPPORTED")
 
+# Generous on purpose -- this is a ceiling against a genuinely stuck
+# connection, not a speed cap. A normal CTA generation (a batch of 4 +
+# lyrics structure) has been observed taking close to a minute on a
+# perfectly healthy response, so anything close to that would cancel calls
+# that were about to succeed. Without any timeout at all, though, a request
+# that Google's side never responds to (not even an error) hangs forever
+# with nothing for the key/model rotation below to react to.
+_GEMINI_TIMEOUT_MS = 180_000  # 3 minutes
+
 
 def _is_retryable_key_error(e):
+    # A timed-out or dropped connection is exactly the kind of transient
+    # failure key/model rotation exists to recover from -- treat it the same
+    # as a 429/503 rather than letting it bubble up as a raw, unclear error.
+    if isinstance(e, (httpx.TimeoutException, httpx.ConnectError)):
+        return True
     message = str(e)
     if message[:3] in _RETRYABLE_STATUS_CODES:
         return True
@@ -125,7 +140,10 @@ def _generate_with_rotation(contents, config, api_keys):
         for i in range(attempts):
             idx = (_key_index + i) % len(keys)
             try:
-                client = genai.Client(api_key=keys[idx])
+                client = genai.Client(
+                    api_key=keys[idx],
+                    http_options=types.HttpOptions(timeout=_GEMINI_TIMEOUT_MS),
+                )
                 response = client.models.generate_content(
                     model=model, contents=contents, config=config
                 )

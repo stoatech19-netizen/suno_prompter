@@ -881,7 +881,7 @@ async function regenerate() {
   categorySubmitBtn.disabled = true;
   ctaSubmitBtn.disabled = true;
   refreshBtn.textContent = "생성 중...";
-  setStatus("같은 분위기로 새로운 변형들을 만드는 중입니다...", false);
+  setStatus("같은 분위기로 새로운 변형들을 만드는 중입니다... (최대 1~2분 정도 소요될 수 있습니다)", false);
 
   try {
     const res = tab === "cta"
@@ -1004,7 +1004,7 @@ categoryForm.addEventListener("submit", async (e) => {
   submitBtn.disabled = true;
   categorySubmitBtn.disabled = true;
   ctaSubmitBtn.disabled = true;
-  setStatus("카테고리에 맞는 배경음악 스타일을 만드는 중입니다...", false);
+  setStatus("카테고리에 맞는 배경음악 스타일을 만드는 중입니다... (최대 1~2분 정도 소요될 수 있습니다)", false);
 
   try {
     const res = await fetch("/api/analyze-category", {
@@ -1057,7 +1057,7 @@ ctaForm.addEventListener("submit", async (e) => {
   submitBtn.disabled = true;
   categorySubmitBtn.disabled = true;
   ctaSubmitBtn.disabled = true;
-  setStatus("CTA 프롬프트를 만드는 중입니다...", false);
+  setStatus("CTA 프롬프트를 만드는 중입니다... (최대 1~2분 정도 소요될 수 있습니다)", false);
 
   try {
     const res = await fetch("/api/generate-cta", {
