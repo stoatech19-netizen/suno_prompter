@@ -1100,10 +1100,14 @@ ctaForm.addEventListener("submit", async (e) => {
   }
 });
 
-// The server has no visible window to close (see launch.vbs), so it relies
-// on this page pinging it to know it's still open. As long as one tab is
-// pinging, the server stays up; once every tab stops (closed, navigated
-// away, PC asleep), the server's watcher thread shuts it down on its own.
+// The server has no visible window to close (see launch.vbs), so it needs
+// the page to tell it when it's actually done being used. Closing the tab
+// fires pagehide, which reliably fires on tab close/navigate-away/browser
+// quit, unlike a plain periodic ping: Chrome/Edge throttle a backgrounded
+// tab's timers down to roughly once a minute (sometimes longer) even though
+// it's still open, so "no ping in N seconds" can't tell a tab that's merely
+// not in focus from one that's actually gone. sendBeacon is used instead of
+// fetch because it's guaranteed to actually go out during unload.
 function pingHeartbeat() {
   return fetch("/api/heartbeat", { method: "POST" });
 }
@@ -1112,19 +1116,22 @@ setInterval(() => {
   pingHeartbeat().catch(() => {});
 }, 3000);
 
-// The browser throttles this interval way down (Chrome/Edge: roughly once a
-// minute) once the tab has been backgrounded for a few minutes, even though
-// it's still open -- the server tolerates that gap (see
-// _HEARTBEAT_TIMEOUT_SECONDS in app.py), but a long enough gap can still
-// outlast it. Ping immediately when the tab becomes the active one again
-// instead of waiting for the next throttled tick, and if the server didn't
-// survive the gap, say so plainly now rather than leaving the user to find
-// out only after clicking 생성 and seeing an unexplained error.
+window.addEventListener("pagehide", () => {
+  try {
+    navigator.sendBeacon("/api/tab-closing");
+  } catch (e) {}
+});
+
+// Covers the rare case where the server shut down for some other reason
+// (crashed, manually closed, left for the ~6 hour abandoned-tab safety net
+// in app.py) while this tab was in the background. Ping right away when the
+// tab becomes active again, and say so plainly now rather than leaving the
+// user to find out only after clicking 생성 and seeing an unexplained error.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     pingHeartbeat().catch(() => {
       if (!requestInFlight) {
-        setStatus("오래 비활성 상태였던 동안 서버가 종료되었습니다. 프로그램을 다시 실행해주세요.", true);
+        setStatus("서버와의 연결이 끊어졌습니다. 프로그램을 다시 실행해주세요.", true);
       }
     });
   }

@@ -57,29 +57,52 @@ def _get_app_version():
 APP_VERSION = _get_app_version()
 
 # The desktop shortcut runs this server with its console window hidden (see
-# launch.vbs), so there's no window for the user to close to stop it. Instead
-# the page itself pings /api/heartbeat while open; if no ping arrives for a
-# while (tab/browser closed, or the PC put the page to sleep for good), this
-# watcher thread shuts the process down so it doesn't linger invisibly.
+# launch.vbs), so there's no window for the user to close to stop it. The
+# page tells the server explicitly when it's actually closing (see
+# navigator.sendBeacon("/api/tab-closing") on pagehide in app.js) instead of
+# relying on a periodic-ping timeout -- a timeout can't tell a tab that's
+# merely backgrounded (Chrome/Edge throttle its timers to roughly once a
+# minute, sometimes longer, but it's still open) from one that's actually
+# gone, so any value short enough to clean up promptly also risks killing
+# the server out from under a user who just isn't looking at the tab.
 #
-# Needs to be generous: Chrome/Edge throttle timers in a tab that's been
-# backgrounded (not the active tab, or the window minimized/covered) for a
-# few minutes down to roughly once a minute, even though the tab was never
-# closed. A short timeout here reads that completely normal throttling as
-# "the browser is gone" and kills the server while the user still has the
-# app open, just not in focus.
-_HEARTBEAT_TIMEOUT_SECONDS = 90
+# A pending close is only acted on if no heartbeat shows up in the grace
+# window after it -- if another tab of the app is still open, its heartbeat
+# cancels the pending close, so one tab closing doesn't take the server down
+# for the others.
+_CLOSE_GRACE_SECONDS = 5
+
+# Pure safety net for when pagehide never fires at all (browser/OS crash,
+# force-kill, power loss) -- generous on purpose since, unlike the grace
+# window above, this has no way to distinguish a long nap from a dead
+# browser. The next run.bat launch cleans up a lingering process anyway
+# (it force-kills whatever's already on port 5001), so there's little cost
+# to erring long here.
+_ABANDONED_TIMEOUT_SECONDS = 6 * 60 * 60  # 6 hours
+
 _last_heartbeat_at = None
+_closing_requested_at = None
 _heartbeat_lock = threading.Lock()
 
 
 def _watch_heartbeat():
+    global _closing_requested_at
     while True:
-        time.sleep(3)
+        time.sleep(1)
+        now = time.time()
         with _heartbeat_lock:
             last = _last_heartbeat_at
-        if last is not None and time.time() - last > _HEARTBEAT_TIMEOUT_SECONDS:
-            print("[server] No browser heartbeat received - shutting down.", flush=True)
+            closing_at = _closing_requested_at
+        if closing_at is not None and now - closing_at > _CLOSE_GRACE_SECONDS:
+            if last is not None and last > closing_at:
+                # Another tab pinged after the close signal -- still in use.
+                with _heartbeat_lock:
+                    _closing_requested_at = None
+            else:
+                print("[server] Tab closed - shutting down.", flush=True)
+                os._exit(0)
+        elif last is not None and now - last > _ABANDONED_TIMEOUT_SECONDS:
+            print("[server] No heartbeat for a very long time - shutting down.", flush=True)
             os._exit(0)
 
 
@@ -168,9 +191,18 @@ def index():
 
 @app.route("/api/heartbeat", methods=["POST"])
 def heartbeat():
-    global _last_heartbeat_at
+    global _last_heartbeat_at, _closing_requested_at
     with _heartbeat_lock:
         _last_heartbeat_at = time.time()
+        _closing_requested_at = None  # a live ping cancels any pending close
+    return "", 204
+
+
+@app.route("/api/tab-closing", methods=["POST"])
+def tab_closing():
+    global _closing_requested_at
+    with _heartbeat_lock:
+        _closing_requested_at = time.time()
     return "", 204
 
 
