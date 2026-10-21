@@ -61,7 +61,14 @@ APP_VERSION = _get_app_version()
 # the page itself pings /api/heartbeat while open; if no ping arrives for a
 # while (tab/browser closed, or the PC put the page to sleep for good), this
 # watcher thread shuts the process down so it doesn't linger invisibly.
-_HEARTBEAT_TIMEOUT_SECONDS = 30
+#
+# Needs to be generous: Chrome/Edge throttle timers in a tab that's been
+# backgrounded (not the active tab, or the window minimized/covered) for a
+# few minutes down to roughly once a minute, even though the tab was never
+# closed. A short timeout here reads that completely normal throttling as
+# "the browser is gone" and kills the server while the user still has the
+# app open, just not in focus.
+_HEARTBEAT_TIMEOUT_SECONDS = 90
 _last_heartbeat_at = None
 _heartbeat_lock = threading.Lock()
 
