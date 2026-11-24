@@ -445,9 +445,11 @@ def analyze_with_gemini(file_path, local_features, api_keys):
 # below, but worded for instrumental background music rather than a vocal
 # pop song.
 CATEGORY_TEMPO_HINTS = {
-    "fast": "FAST (~120-150 bpm) — energetic, driving background music",
-    "medium": "MEDIUM (~95-118 bpm) — a comfortable, steady-moving background energy",
-    "slow": "SLOW (~60-90 bpm) — a relaxed, laid-back background feel",
+    "slow": "SLOW (~60-80 bpm) — a relaxed, laid-back background feel",
+    "medium_slow": "MEDIUM-SLOW (~80-98 bpm) — an unhurried, gently moving background energy",
+    "medium": "MEDIUM (~98-116 bpm) — a comfortable, steady-moving background energy",
+    "medium_fast": "MEDIUM-FAST (~116-134 bpm) — a lively, upbeat background energy",
+    "fast": "FAST (~134-150 bpm) — energetic, driving background music",
 }
 
 
@@ -783,14 +785,19 @@ CTA_LANGUAGE_NAMES = {
 # laid-back tempo doesn't mean under-produced -- the glossy/maximalist
 # polish from _CTA_GENRE_NOTE still applies regardless of tempo.
 CTA_TEMPO_HINTS = {
-    "fast": "FAST (~128-150 bpm) — festival EDM-pop or driving K-pop dance energy",
-    "medium": "MEDIUM (~100-124 bpm) — glossy, danceable pop energy, not frantic",
     "slow": (
-        "SLOW (~70-96 bpm) — a more laid-back tempo, but still fully "
+        "SLOW (~70-90 bpm) — a more laid-back tempo, but still fully "
         "polished and produced: think emotional pop/R&B-pop power "
         "ballad rather than EDM-driven, with the chorus still lifting "
         "into a fuller, bigger arrangement even at this slower pace"
     ),
+    "medium_slow": "MEDIUM-SLOW (~90-106 bpm) — a relaxed but still clearly danceable mid-tempo pop groove",
+    "medium": "MEDIUM (~106-122 bpm) — glossy, danceable pop energy, not frantic",
+    "medium_fast": (
+        "MEDIUM-FAST (~122-138 bpm) — upbeat, energetic pop/dance energy, "
+        "just short of full festival intensity"
+    ),
+    "fast": "FAST (~138-150 bpm) — festival EDM-pop or driving K-pop dance energy",
 }
 
 GEMINI_CTA_SCHEMA = {
